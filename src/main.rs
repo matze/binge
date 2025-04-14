@@ -15,14 +15,14 @@ mod manifest;
 #[command(version, about, long_about = None)]
 #[command(propagate_version = true)]
 struct Cli {
-    #[arg(long = "generate", value_enum)]
-    generator: Option<Shell>,
     #[command(subcommand)]
-    command: Option<Commands>,
+    command: Commands,
 }
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Generate shell completion.
+    Completion { shell: Shell },
     /// Install release binaries from the given repos.
     Install { repos: Vec<String> },
     /// Uninstall release binaries.
@@ -175,32 +175,25 @@ fn list(manifest: &Manifest) -> Result<()> {
 
 async fn try_main() -> Result<()> {
     let cli = Cli::parse();
+    let config = config::Config::new()?;
+    let manifest = Manifest::load_or_create(&config)?;
 
-    if let Some(generator) = cli.generator {
-        let mut cmd = Cli::command();
-        let cmd = &mut cmd;
+    match cli.command {
+        Commands::Completion { shell } => {
+            let mut cmd = Cli::command();
+            let cmd = &mut cmd;
 
-        generate(
-            generator,
-            cmd,
-            cmd.get_name().to_string(),
-            &mut std::io::stdout(),
-        );
-        return Ok(());
-    }
-
-    if let Some(command) = cli.command {
-        let config = config::Config::new()?;
-        let manifest = Manifest::load_or_create(&config)?;
-
-        match command {
-            Commands::Install { repos } => {
-                install(repos, &config, manifest).await?.save(&config)?
-            }
-            Commands::Uninstall { repos } => uninstall(repos, manifest)?.save(&config)?,
-            Commands::Update => update(manifest).await?.save(&config)?,
-            Commands::List => list(&manifest)?,
+            generate(
+                shell,
+                cmd,
+                cmd.get_name().to_string(),
+                &mut std::io::stdout(),
+            );
         }
+        Commands::Install { repos } => install(repos, &config, manifest).await?.save(&config)?,
+        Commands::Uninstall { repos } => uninstall(repos, manifest)?.save(&config)?,
+        Commands::Update => update(manifest).await?.save(&config)?,
+        Commands::List => list(&manifest)?,
     }
 
     Ok(())
