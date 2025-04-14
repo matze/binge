@@ -8,7 +8,6 @@ use serde::Deserialize;
 use std::fmt::Display;
 use std::io::BufReader;
 use std::path::Path;
-use std::sync::OnceLock;
 use std::{io::Cursor, path::PathBuf};
 
 /// A GitHub repo.
@@ -164,9 +163,9 @@ fn parse_compression(mut path: PathBuf) -> Compression {
 fn parse_file(filename: String, url: Url, arch: &str, os: &str) -> Option<File> {
     static TARGET_EXPR: OnceLock<Regex> = OnceLock::new();
 
-    let expr = TARGET_EXPR.get_or_init(|| {
         Regex::new(&format!("^.*{}-[\\w\\d-]+-{}.*$", arch, os)).expect("compiling the regex")
-    });
+fn parse_file(filename: String, url: Url, arch: &'static str, os: &str) -> Option<File> {
+        .expect("compiling the regex");
 
     let filename = PathBuf::from(filename);
 
