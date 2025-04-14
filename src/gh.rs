@@ -160,12 +160,23 @@ fn parse_compression(mut path: PathBuf) -> Compression {
     }
 }
 
-fn parse_file(filename: String, url: Url, arch: &str, os: &str) -> Option<File> {
-    static TARGET_EXPR: OnceLock<Regex> = OnceLock::new();
+/// Map to alternative architecture/OS conventions.
+fn alt_arch_os(arch: &'static str) -> &'static str {
+    if arch == "x86_64" {
+        "(x86_64|amd64)"
+    } else {
+        arch
+    }
+}
 
-        Regex::new(&format!("^.*{}-[\\w\\d-]+-{}.*$", arch, os)).expect("compiling the regex")
 fn parse_file(filename: String, url: Url, arch: &'static str, os: &str) -> Option<File> {
-        .expect("compiling the regex");
+    let arch = alt_arch_os(arch);
+
+    let expr = Regex::new(&format!(
+        "^.*({}-[\\w\\d-]*{}|[\\w\\d-]*{}-{}).*$",
+        arch, os, os, arch
+    ))
+    .expect("compiling the regex");
 
     let filename = PathBuf::from(filename);
 
@@ -347,6 +358,14 @@ mod tests {
     #[test]
     fn parse_compression() -> Result<()> {
         let (name, url) = make_filename_and_url("bar-x86_64-unknown-linux-gnu.tar.gz");
+        let file = parse_file(name, url, "x86_64", "linux").unwrap();
+        assert!(matches!(file.kind, Compression::Gz(Archive::Tar)));
+
+        let (name, url) = make_filename_and_url("bar-amd64-unknown-linux-gnu.tar.gz");
+        let file = parse_file(name, url, "x86_64", "linux").unwrap();
+        assert!(matches!(file.kind, Compression::Gz(Archive::Tar)));
+
+        let (name, url) = make_filename_and_url("bar-linux-amd64.tar.gz");
         let file = parse_file(name, url, "x86_64", "linux").unwrap();
         assert!(matches!(file.kind, Compression::Gz(Archive::Tar)));
 
