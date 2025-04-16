@@ -1,6 +1,9 @@
+use std::{io::Write, time::Duration};
+
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{Shell, generate};
+use futures_concurrency::future::Race;
 use futures_lite::StreamExt;
 use gh::Update;
 use manifest::{Binary, Manifest};
@@ -108,10 +111,25 @@ fn uninstall(repos: Vec<String>, Manifest { version, binaries }: Manifest) -> Re
     Ok(Manifest { version, binaries })
 }
 
+/// Print `message` and a spinner on the same line forever.
+async fn progress<T>(message: &str) -> T {
+    let mut next_spinner = ["⠖", "⠲", "⠴", "⠦"].into_iter().cycle();
+    let wait_duration = Duration::from_millis(100);
+
+    loop {
+        let spinner = next_spinner.next().expect("cycle to provide");
+        print!("\x1B[2K\r{message} {}", spinner.bright_black());
+        std::io::stdout().flush().unwrap();
+        tokio::time::sleep(wait_duration).await;
+    }
+}
+
 /// Concurrently update all installed binaries listed in the manifest.
 async fn update(Manifest { version, binaries }: Manifest) -> Result<Manifest> {
     let mut group = futures_concurrency::future::FutureGroup::new();
     let client = gh::make_client()?;
+
+    let start = std::time::Instant::now();
 
     for binary in binaries {
         let Binary {
@@ -119,9 +137,6 @@ async fn update(Manifest { version, binaries }: Manifest) -> Result<Manifest> {
             path,
             version,
         } = binary;
-
-        let location = gh::Location::new(&repo)?;
-        println!("{} {location} ...", "Checking".bright_green().bold());
 
         let repo = gh::Repo::new(repo)?;
 
@@ -157,8 +172,12 @@ async fn update(Manifest { version, binaries }: Manifest) -> Result<Manifest> {
                 None
             }
         })
-        .collect::<Vec<_>>()
-        .await;
+        .collect::<Vec<_>>();
+
+    let message = format!("{} for new releases ...", "Checking".bright_green().bold());
+    let binaries = (progress(&message), binaries).race().await;
+    let end = std::time::Instant::now();
+    println!("\x1B[2K\r{message} took {:?}", end - start);
 
     Ok(Manifest { version, binaries })
 }
