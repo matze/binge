@@ -69,6 +69,7 @@ pub(crate) enum Archive {
 }
 
 /// Release file information.
+#[derive(Debug)]
 pub(crate) struct File {
     url: Url,
     filename: PathBuf,
@@ -284,6 +285,7 @@ impl Repo {
                     parse_file(name, url, std::env::consts::ARCH, std::env::consts::OS)
                 },
             )
+            .filter(|file| !matches!(file.kind, Compression::None(Archive::None)))
             .next();
 
         if let Some(candidate) = candidate {
@@ -292,7 +294,6 @@ impl Repo {
             let response = client.get(candidate.url).send().await?;
             let mut file = std::fs::File::create(&filepath)?;
             let mut content = Cursor::new(response.bytes().await?);
-            // TODO: show progressbar / spinner
             std::io::copy(&mut content, &mut file)?;
 
             let reader = BufReader::new(std::fs::File::open(PathBuf::from(&filepath))?);
@@ -320,7 +321,7 @@ impl Repo {
                     let input = xz2::read::XzDecoder::new(reader);
                     extract::extract_tar(input, dest_dir)?
                 }
-                _ => todo!(),
+                missing => todo!("{missing:?}"),
             };
 
             return Ok(path);
