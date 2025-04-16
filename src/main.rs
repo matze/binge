@@ -36,6 +36,19 @@ enum Commands {
     List,
 }
 
+/// Print `message` and a spinner on the same line forever.
+async fn progress<T>(message: &str) -> T {
+    let mut next_spinner = ["⠖", "⠲", "⠴", "⠦"].into_iter().cycle();
+    let wait_duration = Duration::from_millis(100);
+
+    loop {
+        let spinner = next_spinner.next().expect("cycle to provide");
+        print!("\x1B[2K\r{message} {}", spinner.bright_black());
+        std::io::stdout().flush().unwrap();
+        tokio::time::sleep(wait_duration).await;
+    }
+}
+
 /// Install all `repose` and update the `manifest`.
 async fn install(
     repos: Vec<String>,
@@ -54,15 +67,13 @@ async fn install(
         println!("{} already installed", already_installed.join(", "));
     }
 
+    let start = std::time::Instant::now();
     let mut group = futures_concurrency::future::FutureGroup::new();
 
     let client = gh::make_client()?;
     let install_path = config.install_path()?;
 
     for repo in to_be_installed {
-        let location = gh::Location::new(&repo)?;
-        println!("{} {location} ...", "Installing".bright_green().bold());
-
         let repo = gh::Repo::new(repo)?;
 
         group.insert({
@@ -72,9 +83,15 @@ async fn install(
         });
     }
 
-    let mut group = std::pin::pin!(group);
+    let group = std::pin::pin!(group);
+    let results = group.collect::<Vec<_>>();
 
-    while let Some(result) = group.next().await {
+    let message = format!("{} ...", "Installing".bright_green().bold());
+    let results = (progress(&message), results).race().await;
+    let end = std::time::Instant::now();
+    println!("\x1B[2K\r{message} took {:?}", end - start);
+
+    for result in results {
         match result {
             Ok(binary) => {
                 let location = gh::Location::new(&binary.repo)?;
@@ -109,19 +126,6 @@ fn uninstall(repos: Vec<String>, Manifest { version, binaries }: Manifest) -> Re
     }
 
     Ok(Manifest { version, binaries })
-}
-
-/// Print `message` and a spinner on the same line forever.
-async fn progress<T>(message: &str) -> T {
-    let mut next_spinner = ["⠖", "⠲", "⠴", "⠦"].into_iter().cycle();
-    let wait_duration = Duration::from_millis(100);
-
-    loop {
-        let spinner = next_spinner.next().expect("cycle to provide");
-        print!("\x1B[2K\r{message} {}", spinner.bright_black());
-        std::io::stdout().flush().unwrap();
-        tokio::time::sleep(wait_duration).await;
-    }
 }
 
 /// Concurrently update all installed binaries listed in the manifest.
