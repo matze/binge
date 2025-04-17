@@ -1,13 +1,11 @@
-use std::{io::Write, time::Duration};
-
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{Shell, generate};
-use futures_concurrency::future::Race;
-use futures_lite::StreamExt;
+use futures_lite::{FutureExt, StreamExt};
 use gh::Update;
 use manifest::{Binary, Manifest};
 use owo_colors::OwoColorize;
+use std::{io::Write, time::Duration};
 
 mod config;
 mod extract;
@@ -87,7 +85,7 @@ async fn install(
     let results = group.collect::<Vec<_>>();
 
     let message = format!("{} ...", "Installing".bright_green().bold());
-    let results = (progress(&message), results).race().await;
+    let results = results.or(progress(&message)).await;
     let end = std::time::Instant::now();
     println!("\x1B[2K\r{message} took {:?}", end - start);
 
@@ -179,7 +177,7 @@ async fn update(Manifest { version, binaries }: Manifest) -> Result<Manifest> {
         .collect::<Vec<_>>();
 
     let message = format!("{} for new releases ...", "Checking".bright_green().bold());
-    let binaries = (progress(&message), binaries).race().await;
+    let binaries = binaries.or(progress(&message)).await;
     let end = std::time::Instant::now();
     println!("\x1B[2K\r{message} took {:?}", end - start);
 
