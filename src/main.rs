@@ -188,7 +188,11 @@ async fn update(Manifest { version, binaries }: Manifest) -> Result<Manifest> {
 
 /// List all installed binaries in the `manifest`.
 fn list(manifest: &Manifest) -> Result<()> {
-    for binary in &manifest.binaries {
+    let mut binaries = manifest.binaries.iter().collect::<Vec<_>>();
+
+    binaries.sort();
+
+    for binary in binaries {
         let location = gh::Location::new(&binary.repo)?;
         println!("{} {}", location, binary.version);
     }
