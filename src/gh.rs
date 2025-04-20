@@ -206,6 +206,67 @@ fn rename_known_binaries(path: PathBuf) -> PathBuf {
     }
 }
 
+async fn fetch_and_extract(
+    client: reqwest::Client,
+    dest_dir: &Path,
+    assets: Vec<Asset>,
+) -> Result<PathBuf> {
+    let candidate = assets
+        .into_iter()
+        .filter_map(
+            |Asset {
+                 name,
+                 url: browser_download_url,
+             }| {
+                let url: Url = browser_download_url.parse().ok()?;
+                parse_file(name, url, std::env::consts::ARCH, std::env::consts::OS)
+            },
+        )
+        .filter(|file| !matches!(file.kind, Compression::None(Archive::None)))
+        .next();
+
+    if let Some(candidate) = candidate {
+        let tmp = tempfile::tempdir()?.into_path();
+        let filepath = tmp.join(&candidate.filename);
+        let response = client.get(candidate.url).send().await?;
+        let mut file = std::fs::File::create(&filepath)?;
+        let mut content = Cursor::new(response.bytes().await?);
+        std::io::copy(&mut content, &mut file)?;
+
+        let reader = BufReader::new(std::fs::File::open(PathBuf::from(&filepath))?);
+
+        let path = match candidate.kind {
+            Compression::None(Archive::Zip) => extract::extract_zip(reader, dest_dir)?,
+            Compression::None(Archive::Tar) => extract::extract_tar(reader, dest_dir)?,
+            Compression::Gz(archive) => {
+                let input = flate2::read::GzDecoder::new(reader);
+
+                match archive {
+                    Archive::None => {
+                        let filename = rename_known_binaries(candidate.filename);
+                        extract::extract_single(input, dest_dir, &filename)?
+                    }
+                    Archive::Zip => todo!(),
+                    Archive::Tar => extract::extract_tar(input, dest_dir)?,
+                }
+            }
+            Compression::Zstd(Archive::Tar) => {
+                let input = zstd::Decoder::new(reader)?;
+                extract::extract_tar(input, dest_dir)?
+            }
+            Compression::Xz(Archive::Tar) => {
+                let input = xz2::read::XzDecoder::new(reader);
+                extract::extract_tar(input, dest_dir)?
+            }
+            missing => todo!("{missing:?}"),
+        };
+
+        return Ok(path);
+    }
+
+    Err(anyhow!("no asset found"))
+}
+
 impl Repo {
     /// Create new repo from the given `location`.
     pub(crate) fn new(location: String) -> Result<Self, anyhow::Error> {
@@ -220,7 +281,7 @@ impl Repo {
             self.location
         ))?;
         let Release { tag_name, assets } = client.get(url).send().await?.json().await?;
-        let path = self.fetch_and_extract(client, dest_dir, assets).await?;
+        let path = fetch_and_extract(client, dest_dir, assets).await?;
 
         Ok(Binary {
             repo: self.location.clone(),
@@ -249,7 +310,7 @@ impl Repo {
                 .parent()
                 .ok_or_else(|| anyhow!("no parent for path found"))?;
 
-            let _ = self.fetch_and_extract(client, dest_dir, assets).await?;
+            let _ = fetch_and_extract(client, dest_dir, assets).await?;
 
             return Ok(Update::Updated {
                 old_version: version,
@@ -266,68 +327,6 @@ impl Repo {
             path,
             version,
         }))
-    }
-
-    async fn fetch_and_extract(
-        &self,
-        client: reqwest::Client,
-        dest_dir: &Path,
-        assets: Vec<Asset>,
-    ) -> Result<PathBuf> {
-        let candidate = assets
-            .into_iter()
-            .filter_map(
-                |Asset {
-                     name,
-                     url: browser_download_url,
-                 }| {
-                    let url: Url = browser_download_url.parse().ok()?;
-                    parse_file(name, url, std::env::consts::ARCH, std::env::consts::OS)
-                },
-            )
-            .filter(|file| !matches!(file.kind, Compression::None(Archive::None)))
-            .next();
-
-        if let Some(candidate) = candidate {
-            let tmp = tempfile::tempdir()?.into_path();
-            let filepath = tmp.join(&candidate.filename);
-            let response = client.get(candidate.url).send().await?;
-            let mut file = std::fs::File::create(&filepath)?;
-            let mut content = Cursor::new(response.bytes().await?);
-            std::io::copy(&mut content, &mut file)?;
-
-            let reader = BufReader::new(std::fs::File::open(PathBuf::from(&filepath))?);
-
-            let path = match candidate.kind {
-                Compression::None(Archive::Zip) => extract::extract_zip(reader, dest_dir)?,
-                Compression::None(Archive::Tar) => extract::extract_tar(reader, dest_dir)?,
-                Compression::Gz(archive) => {
-                    let input = flate2::read::GzDecoder::new(reader);
-
-                    match archive {
-                        Archive::None => {
-                            let filename = rename_known_binaries(candidate.filename);
-                            extract::extract_single(input, dest_dir, &filename)?
-                        }
-                        Archive::Zip => todo!(),
-                        Archive::Tar => extract::extract_tar(input, dest_dir)?,
-                    }
-                }
-                Compression::Zstd(Archive::Tar) => {
-                    let input = zstd::Decoder::new(reader)?;
-                    extract::extract_tar(input, dest_dir)?
-                }
-                Compression::Xz(Archive::Tar) => {
-                    let input = xz2::read::XzDecoder::new(reader);
-                    extract::extract_tar(input, dest_dir)?
-                }
-                missing => todo!("{missing:?}"),
-            };
-
-            return Ok(path);
-        }
-
-        Err(anyhow!("no asset found"))
     }
 }
 
