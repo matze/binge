@@ -176,9 +176,7 @@ fn parse_file(filename: String, url: Url, arch: &'static str, os: &str) -> Optio
 
     let filename = PathBuf::from(filename);
 
-    if expr.find(filename.to_str().unwrap()).is_none() {
-        return None;
-    }
+    expr.find(filename.to_str().unwrap())?;
 
     let kind = parse_compression(filename.clone());
 
@@ -193,7 +191,7 @@ fn rename_known_binaries(path: PathBuf) -> PathBuf {
     if path
         .as_os_str()
         .to_str()
-        .map_or(false, |s| s.starts_with("rust-analyzer"))
+        .is_some_and(|s| s.starts_with("rust-analyzer"))
     {
         PathBuf::from("rust-analyzer")
     } else {
@@ -217,8 +215,7 @@ async fn fetch_and_extract(
                 parse_file(name, url, std::env::consts::ARCH, std::env::consts::OS)
             },
         )
-        .filter(|file| !matches!(file.kind, Compression::None(Archive::None)))
-        .next();
+        .find(|file| !matches!(file.kind, Compression::None(Archive::None)));
 
     if let Some(candidate) = candidate {
         let tmp = tempfile::tempdir()?.into_path();

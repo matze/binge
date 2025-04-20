@@ -54,7 +54,7 @@ async fn install(
     mut manifest: Manifest,
 ) -> Result<Manifest> {
     let (already_installed, to_be_installed): (Vec<_>, Vec<_>) =
-        repos.into_iter().partition(|repo| manifest.exists(&repo));
+        repos.into_iter().partition(|repo| manifest.exists(repo));
 
     let already_installed = already_installed
         .into_iter()
