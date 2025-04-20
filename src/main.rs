@@ -2,7 +2,6 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{Shell, generate};
 use futures_lite::{FutureExt, StreamExt};
-use gh::Update;
 use manifest::{Binary, Manifest};
 use owo_colors::OwoColorize;
 use std::{io::Write, time::Duration};
@@ -137,8 +136,8 @@ async fn update(Manifest { version, binaries }: Manifest) -> Result<Manifest> {
 
             async move {
                 match gh::update(client, &binary).await {
-                    Ok(Update::Existing) => binary,
-                    Ok(Update::Updated(binary)) => binary,
+                    Ok(None) => binary,
+                    Ok(Some(binary)) => binary,
                     Err(err) => {
                         // TODO: collect these and print them out later
                         eprintln!("err: failed to update: {err:?}");

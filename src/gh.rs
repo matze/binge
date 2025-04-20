@@ -31,14 +31,6 @@ pub(crate) struct Asset {
     pub url: String,
 }
 
-/// Return value for updating.
-pub(crate) enum Update {
-    /// New version.
-    Updated(Binary),
-    /// No new version found.
-    Existing,
-}
-
 /// Supported compression type.
 #[derive(Debug)]
 pub(crate) enum Compression {
@@ -279,8 +271,9 @@ pub(crate) async fn install(
     })
 }
 
-/// Update `binary` and return an [`Update`].
-pub(crate) async fn update(client: reqwest::Client, binary: &Binary) -> Result<Update> {
+/// Try to update `binary`. Returns `Ok(Some(binary))` in case a new update has been found,
+/// otherwise `Ok(None)`.
+pub(crate) async fn update(client: reqwest::Client, binary: &Binary) -> Result<Option<Binary>> {
     let url = reqwest::Url::parse(&format!(
         "https://api.github.com/repos/{}/releases/latest",
         binary.repo
@@ -297,14 +290,14 @@ pub(crate) async fn update(client: reqwest::Client, binary: &Binary) -> Result<U
 
         let _ = fetch_and_extract(client, dest_dir, assets).await?;
 
-        return Ok(Update::Updated(Binary {
+        return Ok(Some(Binary {
             repo: binary.repo.clone(),
             path: binary.path.clone(),
             version: tag_name,
         }));
     }
 
-    Ok(Update::Existing)
+    Ok(None)
 }
 
 #[cfg(test)]
