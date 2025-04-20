@@ -10,11 +10,6 @@ use std::io::BufReader;
 use std::path::Path;
 use std::{io::Cursor, path::PathBuf};
 
-/// A GitHub repo.
-pub(crate) struct Repo {
-    location: String,
-}
-
 /// Split repo into owner and repo slices.
 pub(crate) struct Location<'a> {
     owner: &'a str,
@@ -39,9 +34,9 @@ pub(crate) struct Asset {
 /// Return value for updating.
 pub(crate) enum Update {
     /// New version.
-    Updated { old_version: String, binary: Binary },
+    Updated(Binary),
     /// No new version found.
-    Existing(Binary),
+    Existing,
 }
 
 /// Supported compression type.
@@ -267,67 +262,52 @@ async fn fetch_and_extract(
     Err(anyhow!("no asset found"))
 }
 
-impl Repo {
-    /// Create new repo from the given `location`.
-    pub(crate) fn new(location: String) -> Result<Self, anyhow::Error> {
-        let _ = Location::new(&location)?;
-        Ok(Self { location })
-    }
+/// Install latest version and record in the local installation manifest.
+pub(crate) async fn install(
+    client: reqwest::Client,
+    repo: &str,
+    dest_dir: &Path,
+) -> Result<Binary> {
+    let url = reqwest::Url::parse(&format!(
+        "https://api.github.com/repos/{}/releases/latest",
+        repo,
+    ))?;
+    let Release { tag_name, assets } = client.get(url).send().await?.json().await?;
+    let path = fetch_and_extract(client, dest_dir, assets).await?;
 
-    /// Install latest version and record in the local installation manifest.
-    pub(crate) async fn install(&self, client: reqwest::Client, dest_dir: &Path) -> Result<Binary> {
-        let url = reqwest::Url::parse(&format!(
-            "https://api.github.com/repos/{}/releases/latest",
-            self.location
-        ))?;
-        let Release { tag_name, assets } = client.get(url).send().await?.json().await?;
-        let path = fetch_and_extract(client, dest_dir, assets).await?;
+    Ok(Binary {
+        repo: repo.into(),
+        path,
+        version: tag_name,
+    })
+}
 
-        Ok(Binary {
-            repo: self.location.clone(),
-            path,
+/// Update `binary` and return an [`Update`].
+pub(crate) async fn update(client: reqwest::Client, binary: &Binary) -> Result<Update> {
+    let url = reqwest::Url::parse(&format!(
+        "https://api.github.com/repos/{}/releases/latest",
+        binary.repo
+    ))?;
+
+    let Release { tag_name, assets } = client.get(url).send().await?.json().await?;
+
+    // TODO: semver comparison
+    if binary.version != tag_name {
+        let dest_dir = &binary
+            .path
+            .parent()
+            .ok_or_else(|| anyhow!("no parent for path found"))?;
+
+        let _ = fetch_and_extract(client, dest_dir, assets).await?;
+
+        return Ok(Update::Updated(Binary {
+            repo: binary.repo.clone(),
+            path: binary.path.clone(),
             version: tag_name,
-        })
+        }));
     }
 
-    pub(crate) async fn update(
-        &self,
-        client: reqwest::Client,
-        version: String,
-        path: PathBuf,
-    ) -> Result<Update> {
-        // FIXME: errors should return an Update containing an error rather than a Result
-        let url = reqwest::Url::parse(&format!(
-            "https://api.github.com/repos/{}/releases/latest",
-            self.location
-        ))?;
-        let repo = self.location.clone();
-        let Release { tag_name, assets } = client.get(url).send().await?.json().await?;
-
-        // TODO: semver comparison
-        if version != tag_name {
-            let dest_dir = path
-                .parent()
-                .ok_or_else(|| anyhow!("no parent for path found"))?;
-
-            let _ = fetch_and_extract(client, dest_dir, assets).await?;
-
-            return Ok(Update::Updated {
-                old_version: version,
-                binary: Binary {
-                    repo,
-                    path,
-                    version: tag_name,
-                },
-            });
-        }
-
-        Ok(Update::Existing(Binary {
-            repo,
-            path,
-            version,
-        }))
-    }
+    Ok(Update::Existing)
 }
 
 #[cfg(test)]

@@ -72,12 +72,10 @@ async fn install(
     let install_path = config.install_path()?;
 
     for repo in to_be_installed {
-        let repo = gh::Repo::new(repo)?;
-
         group.insert({
             let client = client.clone();
             let install_path = install_path.clone();
-            async move { repo.install(client, &install_path).await }
+            async move { gh::install(client, &repo, &install_path).await }
         });
     }
 
@@ -134,50 +132,28 @@ async fn update(Manifest { version, binaries }: Manifest) -> Result<Manifest> {
     let start = std::time::Instant::now();
 
     for binary in binaries {
-        let Binary {
-            repo,
-            path,
-            version,
-        } = binary;
-
-        let repo = gh::Repo::new(repo)?;
-
         group.insert({
             let client = client.clone();
-            async move { repo.update(client, version, path).await }
+
+            async move {
+                match gh::update(client, &binary).await {
+                    Ok(Update::Existing) => binary,
+                    Ok(Update::Updated(binary)) => binary,
+                    Err(err) => {
+                        // TODO: collect these and print them out later
+                        eprintln!("err: failed to update: {err:?}");
+                        binary
+                    }
+                }
+            }
         });
     }
 
     let group = std::pin::pin!(group);
-
-    let binaries = group
-        .filter_map(|result| match result {
-            Ok(Update::Updated {
-                old_version,
-                binary,
-            }) => {
-                let location = gh::Location::new(&binary.repo).unwrap();
-
-                println!(
-                    "{} {} ({} -> {})",
-                    "Updated".bright_green(),
-                    location,
-                    old_version,
-                    binary.version
-                );
-
-                Some(binary)
-            }
-            Ok(Update::Existing(binary)) => Some(binary),
-            Err(err) => {
-                eprintln!("{}: {err}", "Error".bright_red().bold());
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-
+    let binaries = group.collect::<Vec<_>>();
     let message = format!("{} for new releases ...", "Checking".bright_green().bold());
     let binaries = binaries.or(progress(&message)).await;
+
     let end = std::time::Instant::now();
     println!("\x1B[2K\r{message} took {:?}", end - start);
 
