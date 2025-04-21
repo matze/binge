@@ -139,8 +139,14 @@ async fn update(Manifest { version, binaries }: Manifest) -> Result<Manifest> {
                     Ok(None) => binary,
                     Ok(Some(binary)) => binary,
                     Err(err) => {
+                        let location = gh::Location::new(&binary.repo).expect("creating location");
+
                         // TODO: collect these and print them out later
-                        eprintln!("err: failed to update: {err:?}");
+                        eprintln!(
+                            "{}: failed to update {}: {err:?}",
+                            "Error".bright_red().bold(),
+                            location,
+                        );
                         binary
                     }
                 }
