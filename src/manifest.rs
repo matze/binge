@@ -1,8 +1,10 @@
 //! Manage the local installation manifest.
 
 use crate::config::Config;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
+use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 use std::{
     fs::File,
     io::{BufReader, BufWriter},
@@ -19,12 +21,44 @@ pub(crate) struct Manifest {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct Binary {
-    /// Repository where this binary is from..
+    /// Repository where this binary is from.
     pub repo: String,
     /// Path to the binary executable.
     pub path: PathBuf,
     /// Installed version of the executable.
     pub version: String,
+}
+
+/// Split repo into owner and repo slices.
+pub(crate) struct Location<'a> {
+    owner: &'a str,
+    repo: &'a str,
+}
+
+impl<'a> Location<'a> {
+    pub(crate) fn new(repo: &'a str) -> Result<Self> {
+        let mut split = repo.split('/');
+
+        let owner = split.next().ok_or(anyhow!("{} has no slash", repo))?;
+        let repo = split.next().ok_or(anyhow!("{} has no repo", repo))?;
+
+        if split.next().is_some() {
+            return Err(anyhow!("{repo} is not of owner/repo format"));
+        }
+
+        Ok(Self { owner, repo })
+    }
+}
+
+impl Display for Location<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}/{}",
+            self.owner.bright_black(),
+            self.repo.bright_purple().bold(),
+        )
+    }
 }
 
 impl PartialOrd for Binary {
@@ -36,6 +70,12 @@ impl PartialOrd for Binary {
 impl Ord for Binary {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.repo.cmp(&other.repo)
+    }
+}
+
+impl Binary {
+    pub(crate) fn location(&self) -> Result<Location> {
+        Location::new(&self.repo)
     }
 }
 

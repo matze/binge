@@ -57,7 +57,7 @@ async fn install(
 
     let already_installed = already_installed
         .into_iter()
-        .map(|repo| gh::Location::new(&repo).map(|location| location.to_string()))
+        .map(|repo| manifest::Location::new(&repo).map(|location| location.to_string()))
         .collect::<Result<Vec<_>>>()?;
 
     if !already_installed.is_empty() {
@@ -89,7 +89,7 @@ async fn install(
     for result in results {
         match result {
             Ok(binary) => {
-                let location = gh::Location::new(&binary.repo)?;
+                let location = binary.location()?;
 
                 println!(
                     "{} {location} {}",
@@ -115,8 +115,8 @@ fn uninstall(repos: Vec<String>, Manifest { version, binaries }: Manifest) -> Re
         .partition(|binary| repos.iter().any(|repo| **repo == binary.repo));
 
     for binary in to_be_uninstalled {
-        std::fs::remove_file(binary.path)?;
-        let location = gh::Location::new(&binary.repo)?;
+        std::fs::remove_file(&binary.path)?;
+        let location = binary.location()?;
         println!("{} {location}", "Uninstalled".bright_green().bold());
     }
 
@@ -139,13 +139,11 @@ async fn update(Manifest { version, binaries }: Manifest) -> Result<Manifest> {
                     Ok(None) => binary,
                     Ok(Some(binary)) => binary,
                     Err(err) => {
-                        let location = gh::Location::new(&binary.repo).expect("creating location");
-
                         // TODO: collect these and print them out later
                         eprintln!(
                             "{}: failed to update {}: {err:?}",
                             "Error".bright_red().bold(),
-                            location,
+                            binary.location().expect("creating location"),
                         );
                         binary
                     }
@@ -172,8 +170,7 @@ fn list(manifest: &Manifest) -> Result<()> {
     binaries.sort();
 
     for binary in binaries {
-        let location = gh::Location::new(&binary.repo)?;
-        println!("{} {}", location, binary.version);
+        println!("{} {}", binary.location()?, binary.version);
     }
 
     Ok(())

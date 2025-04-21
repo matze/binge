@@ -1,20 +1,12 @@
 use crate::{Binary, extract};
 use anyhow::{Result, anyhow};
-use owo_colors::OwoColorize;
 use regex::Regex;
 use reqwest::Url;
 use reqwest::header::{self, HeaderMap, HeaderValue};
 use serde::Deserialize;
-use std::fmt::Display;
 use std::io::BufReader;
 use std::path::Path;
 use std::{io::Cursor, path::PathBuf};
-
-/// Split repo into owner and repo slices.
-pub(crate) struct Location<'a> {
-    owner: &'a str,
-    repo: &'a str,
-}
 
 /// API release.
 #[derive(Deserialize, Debug)]
@@ -85,32 +77,6 @@ pub(crate) fn make_client() -> Result<reqwest::Client> {
         .build()?;
 
     Ok(client)
-}
-
-impl<'a> Location<'a> {
-    pub(crate) fn new(repo: &'a str) -> Result<Self> {
-        let mut split = repo.split('/');
-
-        let owner = split.next().ok_or(anyhow!("{} has no slash", repo))?;
-        let repo = split.next().ok_or(anyhow!("{} has no repo", repo))?;
-
-        if split.next().is_some() {
-            return Err(anyhow!("{repo} is not of owner/repo format"));
-        }
-
-        Ok(Self { owner, repo })
-    }
-}
-
-impl Display for Location<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}/{}",
-            self.owner.bright_black(),
-            self.repo.bright_purple().bold(),
-        )
-    }
 }
 
 fn parse_archive(path: PathBuf) -> Archive {
