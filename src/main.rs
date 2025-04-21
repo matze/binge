@@ -130,35 +130,62 @@ async fn update(Manifest { version, binaries }: Manifest) -> Result<Manifest> {
 
     let start = std::time::Instant::now();
 
+    enum Update {
+        NotFound(Binary),
+        Installed { old: Binary, new: Binary },
+        Error { old: Binary, err: anyhow::Error },
+    }
+
     for binary in binaries {
         group.insert({
             let client = client.clone();
 
             async move {
                 match gh::update(client, &binary).await {
-                    Ok(None) => binary,
-                    Ok(Some(binary)) => binary,
-                    Err(err) => {
-                        // TODO: collect these and print them out later
-                        eprintln!(
-                            "{}: failed to update {}: {err:?}",
-                            "Error".bright_red().bold(),
-                            binary.location().expect("creating location"),
-                        );
-                        binary
-                    }
+                    Ok(None) => Update::NotFound(binary),
+                    Ok(Some(new)) => Update::Installed { old: binary, new },
+                    Err(err) => Update::Error { old: binary, err },
                 }
             }
         });
     }
 
     let group = std::pin::pin!(group);
-    let binaries = group.collect::<Vec<_>>();
+    let updates = group.collect::<Vec<_>>();
     let message = format!("{} for new releases ...", "Checking".bright_green().bold());
-    let binaries = binaries.or(progress(&message)).await;
+    let updates = updates.or(progress(&message)).await;
 
     let end = std::time::Instant::now();
     println!("\x1B[2K\r{message} took {:?}", end - start);
+
+    let binaries = updates
+        .into_iter()
+        .map(|update| match update {
+            Update::NotFound(old) => old,
+            Update::Installed { old, new } => {
+                let location = old.location().expect("creating location");
+
+                println!(
+                    "{} {} ({} -> {})",
+                    "Updated".bright_green(),
+                    location,
+                    old.version,
+                    new.version
+                );
+
+                new
+            }
+            Update::Error { old, err } => {
+                eprintln!(
+                    "{}: failed to update {}: {err:?}",
+                    "Error".bright_red().bold(),
+                    old.location().expect("creating location"),
+                );
+
+                old
+            }
+        })
+        .collect::<_>();
 
     Ok(Manifest { version, binaries })
 }
