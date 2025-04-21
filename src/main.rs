@@ -51,6 +51,7 @@ async fn install(
     repos: Vec<String>,
     config: &config::Config,
     mut manifest: Manifest,
+    token: Option<String>,
 ) -> Result<Manifest> {
     let (already_installed, to_be_installed): (Vec<_>, Vec<_>) =
         repos.into_iter().partition(|repo| manifest.exists(repo));
@@ -67,7 +68,7 @@ async fn install(
     let start = std::time::Instant::now();
     let mut group = futures_concurrency::future::FutureGroup::new();
 
-    let client = gh::make_client()?;
+    let client = gh::make_client(token)?;
     let install_path = config.install_path()?;
 
     for repo in to_be_installed {
@@ -124,9 +125,12 @@ fn uninstall(repos: Vec<String>, Manifest { version, binaries }: Manifest) -> Re
 }
 
 /// Concurrently update all installed binaries listed in the manifest.
-async fn update(Manifest { version, binaries }: Manifest) -> Result<Manifest> {
+async fn update(
+    Manifest { version, binaries }: Manifest,
+    token: Option<String>,
+) -> Result<Manifest> {
     let mut group = futures_concurrency::future::FutureGroup::new();
-    let client = gh::make_client()?;
+    let client = gh::make_client(token)?;
 
     let start = std::time::Instant::now();
 
@@ -207,6 +211,7 @@ async fn try_main() -> Result<()> {
     let cli = Cli::parse();
     let config = config::Config::new()?;
     let manifest = Manifest::load_or_create(&config)?;
+    let token = std::env::var("GITHUB_TOKEN").ok();
 
     match cli.command {
         Commands::Completion { shell } => {
@@ -220,9 +225,11 @@ async fn try_main() -> Result<()> {
                 &mut std::io::stdout(),
             );
         }
-        Commands::Install { repos } => install(repos, &config, manifest).await?.save(&config)?,
+        Commands::Install { repos } => install(repos, &config, manifest, token)
+            .await?
+            .save(&config)?,
         Commands::Uninstall { repos } => uninstall(repos, manifest)?.save(&config)?,
-        Commands::Update => update(manifest).await?.save(&config)?,
+        Commands::Update => update(manifest, token).await?.save(&config)?,
         Commands::List => list(&manifest)?,
     }
 

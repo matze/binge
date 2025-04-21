@@ -39,6 +39,12 @@ binge update
 ```
 
 
+## Using a GitHub personal access token
+
+By default, API calls are not authorized and thus may fall under some rate
+limits. To avoid that, set the `GITHUB_TOKEN` to a (preferably specific,
+fine-grained) personal access token.
+
 ## Platform support
 
 As of now, only Linux is supported.

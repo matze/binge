@@ -55,7 +55,8 @@ pub(crate) struct File {
     kind: Compression,
 }
 
-pub(crate) fn make_client() -> Result<reqwest::Client> {
+/// Create a new client usable for GitHub APIs.
+pub(crate) fn make_client(token: Option<String>) -> Result<reqwest::Client> {
     let mut headers = HeaderMap::new();
 
     headers.insert(
@@ -69,6 +70,13 @@ pub(crate) fn make_client() -> Result<reqwest::Client> {
         "X-GitHub-Api-Version",
         HeaderValue::from_static("2022-11-28"),
     );
+
+    if let Some(token) = token {
+        headers.insert(
+            "Authorization",
+            HeaderValue::from_str(&format!("Bearer: {token}"))?,
+        );
+    }
 
     let client = reqwest::ClientBuilder::new()
         .default_headers(headers)
