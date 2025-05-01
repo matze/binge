@@ -74,7 +74,7 @@ pub(crate) fn make_client(token: Option<String>) -> Result<reqwest::Client> {
     if let Some(token) = token {
         headers.insert(
             "Authorization",
-            HeaderValue::from_str(&format!("Bearer: {token}"))?,
+            HeaderValue::from_str(&format!("Bearer {token}"))?,
         );
     }
 
