@@ -1,4 +1,4 @@
-use crate::{Binary, extract};
+use crate::{Binary, Repo, extract};
 use anyhow::{Result, anyhow};
 use regex::Regex;
 use reqwest::Url;
@@ -228,18 +228,18 @@ async fn fetch_and_extract(
 /// Install latest version and record in the local installation manifest.
 pub(crate) async fn install(
     client: reqwest::Client,
-    repo: &str,
+    repo: Repo,
     dest_dir: &Path,
 ) -> Result<Binary> {
     let url = reqwest::Url::parse(&format!(
-        "https://api.github.com/repos/{}/releases/latest",
-        repo,
+        "https://api.github.com/repos/{}/{}/releases/latest",
+        repo.owner, repo.name,
     ))?;
     let Release { tag_name, assets } = client.get(url).send().await?.json().await?;
     let path = fetch_and_extract(client, dest_dir, assets).await?;
 
     Ok(Binary {
-        repo: repo.into(),
+        repo,
         path,
         version: tag_name,
     })

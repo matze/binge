@@ -4,8 +4,8 @@ use crate::config::Config;
 use anyhow::{Result, anyhow};
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
 use std::{
+    cmp::Ordering,
     fs::File,
     io::{BufReader, BufWriter},
     path::PathBuf,
@@ -22,60 +22,84 @@ pub(crate) struct Manifest {
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct Binary {
     /// Repository where this binary is from.
-    pub repo: String,
+    pub repo: Repo,
     /// Path to the binary executable.
     pub path: PathBuf,
     /// Installed version of the executable.
     pub version: String,
 }
 
-/// Split repo into owner and repo slices.
-pub(crate) struct Location<'a> {
-    owner: &'a str,
-    repo: &'a str,
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+pub(crate) struct Repo {
+    /// Owner of the repository
+    pub owner: String,
+    /// Name of the repository
+    pub name: String,
 }
 
-impl<'a> Location<'a> {
-    pub(crate) fn new(repo: &'a str) -> Result<Self> {
-        let mut split = repo.split('/');
-
-        let owner = split.next().ok_or(anyhow!("{} has no slash", repo))?;
-        let repo = split.next().ok_or(anyhow!("{} has no repo", repo))?;
-
-        if split.next().is_some() {
-            return Err(anyhow!("{repo} is not of owner/repo format"));
+impl Ord for Repo {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self.owner.cmp(&other.owner), self.name.cmp(&other.name)) {
+            (Ordering::Less, Ordering::Less) => Ordering::Less,
+            (Ordering::Less, Ordering::Equal) => Ordering::Less,
+            (Ordering::Less, Ordering::Greater) => Ordering::Less,
+            (Ordering::Equal, Ordering::Less) => Ordering::Less,
+            (Ordering::Equal, Ordering::Equal) => Ordering::Equal,
+            (Ordering::Equal, Ordering::Greater) => Ordering::Greater,
+            (Ordering::Greater, Ordering::Less) => Ordering::Greater,
+            (Ordering::Greater, Ordering::Equal) => Ordering::Greater,
+            (Ordering::Greater, Ordering::Greater) => Ordering::Greater,
         }
-
-        Ok(Self { owner, repo })
     }
 }
 
-impl Display for Location<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}/{}",
-            self.owner.bright_black(),
-            self.repo.bright_purple().bold(),
-        )
+impl PartialOrd for Repo {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
 impl PartialOrd for Binary {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Binary {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.repo.cmp(&other.repo)
     }
 }
 
-impl Binary {
-    pub(crate) fn location(&self) -> Result<Location> {
-        Location::new(&self.repo)
+impl std::str::FromStr for Repo {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let mut split = s.split('/');
+
+        let owner = split
+            .next()
+            .ok_or(anyhow!("{} has no slash", s))?
+            .to_owned();
+
+        let repo = split.next().ok_or(anyhow!("{} has no repo", s))?.to_owned();
+
+        if split.next().is_some() {
+            return Err(anyhow!("{s} is not of owner/repo format"));
+        }
+
+        Ok(Self { owner, name: repo })
+    }
+}
+
+impl std::fmt::Display for Repo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}/{}",
+            self.owner.bright_black(),
+            self.name.bright_purple().bold(),
+        )
     }
 }
 
@@ -114,7 +138,7 @@ impl Manifest {
         self.binaries.sort();
     }
 
-    pub(crate) fn exists(&self, repo: &str) -> bool {
-        self.binaries.iter().any(|binary| binary.repo == repo)
+    pub(crate) fn exists(&self, repo: &Repo) -> bool {
+        self.binaries.iter().any(|binary| binary.repo == *repo)
     }
 }

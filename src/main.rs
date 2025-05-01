@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{Shell, generate};
 use futures_lite::{FutureExt, StreamExt};
+use manifest::Repo;
 use manifest::{Binary, Manifest};
 use owo_colors::OwoColorize;
 use std::{io::Write, time::Duration};
@@ -24,9 +25,9 @@ enum Commands {
     /// Generate shell completion.
     Completion { shell: Shell },
     /// Install release binaries from the given repos.
-    Install { repos: Vec<String> },
+    Install { repos: Vec<Repo> },
     /// Uninstall release binaries.
-    Uninstall { repos: Vec<String> },
+    Uninstall { repos: Vec<Repo> },
     /// Find and install updates for installed binaries.
     Update,
     /// List installed binaries
@@ -48,7 +49,7 @@ async fn progress<T>(message: &str) -> T {
 
 /// Install all `repose` and update the `manifest`.
 async fn install(
-    repos: Vec<String>,
+    repos: Vec<Repo>,
     config: &config::Config,
     mut manifest: Manifest,
     token: Option<String>,
@@ -58,8 +59,8 @@ async fn install(
 
     let already_installed = already_installed
         .into_iter()
-        .map(|repo| manifest::Location::new(&repo).map(|location| location.to_string()))
-        .collect::<Result<Vec<_>>>()?;
+        .map(|repo| repo.to_string())
+        .collect::<Vec<_>>();
 
     if !already_installed.is_empty() {
         println!("{} already installed", already_installed.join(", "));
@@ -75,7 +76,7 @@ async fn install(
         group.insert({
             let client = client.clone();
             let install_path = install_path.clone();
-            async move { gh::install(client, &repo, &install_path).await }
+            async move { gh::install(client, repo, &install_path).await }
         });
     }
 
@@ -90,11 +91,10 @@ async fn install(
     for result in results {
         match result {
             Ok(binary) => {
-                let location = binary.location()?;
-
                 println!(
-                    "{} {location} {}",
+                    "{} {} {}",
                     "Installed ".bright_green().bold(),
+                    binary.repo,
                     binary.version
                 );
 
@@ -110,15 +110,14 @@ async fn install(
 }
 
 /// Uninstall all `repos` and update the provided manifest.
-fn uninstall(repos: Vec<String>, Manifest { version, binaries }: Manifest) -> Result<Manifest> {
+fn uninstall(repos: Vec<Repo>, Manifest { version, binaries }: Manifest) -> Result<Manifest> {
     let (to_be_uninstalled, binaries): (Vec<_>, Vec<_>) = binaries
         .into_iter()
-        .partition(|binary| repos.iter().any(|repo| **repo == binary.repo));
+        .partition(|binary| repos.iter().any(|repo| *repo == binary.repo));
 
     for binary in to_be_uninstalled {
         std::fs::remove_file(&binary.path)?;
-        let location = binary.location()?;
-        println!("{} {location}", "Uninstalled".bright_green().bold());
+        println!("{} {}", "Uninstalled".bright_green().bold(), binary.repo);
     }
 
     Ok(Manifest { version, binaries })
@@ -167,12 +166,10 @@ async fn update(
         .map(|update| match update {
             Update::NotFound(old) => old,
             Update::Installed { old, new } => {
-                let location = old.location().expect("creating location");
-
                 println!(
                     "{} {} ({} -> {})",
                     "Updated".bright_green(),
-                    location,
+                    old.repo,
                     old.version,
                     new.version
                 );
@@ -183,7 +180,7 @@ async fn update(
                 eprintln!(
                     "{}: failed to update {}: {err:?}",
                     "Error".bright_red().bold(),
-                    old.location().expect("creating location"),
+                    old.repo,
                 );
 
                 old
@@ -201,7 +198,7 @@ fn list(manifest: &Manifest) -> Result<()> {
     binaries.sort();
 
     for binary in binaries {
-        println!("{} {}", binary.location()?, binary.version);
+        println!("{} {}", binary.repo, binary.version);
     }
 
     Ok(())
