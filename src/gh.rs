@@ -257,8 +257,8 @@ pub(crate) async fn install(
 /// otherwise `Ok(None)`.
 pub(crate) async fn update(client: reqwest::Client, binary: &Binary) -> Result<Option<Binary>> {
     let url = reqwest::Url::parse(&format!(
-        "https://api.github.com/repos/{}/releases/latest",
-        binary.repo
+        "https://api.github.com/repos/{}/{}/releases/latest",
+        binary.repo.owner, binary.repo.name,
     ))?;
 
     let Release { tag_name, assets } = client.get(url).send().await?.json().await?;
