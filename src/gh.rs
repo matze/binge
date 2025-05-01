@@ -236,7 +236,15 @@ pub(crate) async fn install(
         repo.owner, repo.name,
     ))?;
     let Release { tag_name, assets } = client.get(url).send().await?.json().await?;
-    let path = fetch_and_extract(client, dest_dir, assets).await?;
+    let mut path = fetch_and_extract(client, dest_dir, assets).await?;
+
+    if let Some(name) = &repo.rename {
+        let from = path.clone();
+        path.pop();
+        path.push(name);
+
+        std::fs::rename(from, &path)?;
+    }
 
     Ok(Binary {
         repo,

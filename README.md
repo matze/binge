@@ -26,7 +26,15 @@ For example to install `fd` and `rg`, run
 binge install sharkdp/fd BurntSushi/ripgrep
 ```
 
-Similarly, you can uninstall binaries:
+In some cases the binaries themselves have some prefix or suffix. In order to
+install them under a different name, put a colon and the final name after the
+repo name. For example to install `jjui` use
+
+```bash
+binge install idursun/jjui:jjui
+```
+
+To uninstall binaries use
 
 ```bash
 binge uninstall sharkdp/fd BurntSushi/ripgrep

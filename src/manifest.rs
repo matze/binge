@@ -35,6 +35,8 @@ pub(crate) struct Repo {
     pub owner: String,
     /// Name of the repository
     pub name: String,
+    /// Optional name of the binary
+    pub rename: Option<String>,
 }
 
 impl Ord for Repo {
@@ -82,13 +84,22 @@ impl std::str::FromStr for Repo {
             .ok_or(anyhow!("{} has no slash", s))?
             .to_owned();
 
-        let repo = split.next().ok_or(anyhow!("{} has no repo", s))?.to_owned();
+        let repo = split.next().ok_or(anyhow!("{} has no repo", s))?;
 
         if split.next().is_some() {
             return Err(anyhow!("{s} is not of owner/repo format"));
         }
 
-        Ok(Self { owner, name: repo })
+        let mut split = repo.split(':');
+
+        let name = split.next().ok_or(anyhow!("{repo} is not a repo"))?;
+        let rename = split.next().map(String::from);
+
+        Ok(Self {
+            owner,
+            name: name.to_owned(),
+            rename,
+        })
     }
 }
 
