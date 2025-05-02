@@ -125,7 +125,7 @@ fn parse_compression(mut path: PathBuf) -> Compression {
 /// Map to alternative architecture/OS conventions.
 fn alt_arch_os(arch: &'static str) -> &'static str {
     if arch == "x86_64" {
-        "(x86_64|amd64)"
+        "(x86_64|amd64|x64)"
     } else {
         arch
     }
@@ -170,20 +170,17 @@ async fn fetch_and_extract(
     dest_dir: &Path,
     assets: Vec<Asset>,
 ) -> Result<PathBuf> {
-    let candidate = assets
-        .into_iter()
-        .filter_map(
-            |Asset {
-                 name,
-                 url: browser_download_url,
-             }| {
-                let url: Url = browser_download_url.parse().ok()?;
-                parse_file(name, url, std::env::consts::ARCH, std::env::consts::OS)
-            },
-        )
-        .find(|file| !matches!(file.kind, Compression::None(Archive::None)));
+    let mut candidates = assets.into_iter().filter_map(
+        |Asset {
+             name,
+             url: browser_download_url,
+         }| {
+            let url: Url = browser_download_url.parse().ok()?;
+            parse_file(name, url, std::env::consts::ARCH, std::env::consts::OS)
+        },
+    );
 
-    if let Some(candidate) = candidate {
+    if let Some(candidate) = candidates.next() {
         let tmp = tempfile::tempdir()?.into_path();
         let filepath = tmp.join(&candidate.filename);
         let response = client.get(candidate.url).send().await?;
@@ -215,6 +212,10 @@ async fn fetch_and_extract(
             Compression::Xz(Archive::Tar) => {
                 let input = xz2::read::XzDecoder::new(reader);
                 extract::extract_tar(input, dest_dir)?
+            }
+            Compression::None(Archive::None) => {
+                // TODO: it's a bit wasteful because we copy the file twice.
+                extract::extract_single(reader, dest_dir, &candidate.filename)?
             }
             missing => todo!("{missing:?}"),
         };
@@ -346,6 +347,10 @@ mod tests {
         assert!(matches!(file.kind, Compression::None(Archive::Zip)));
 
         let (name, url) = make_filename_and_url("bar-x86_64-unknown-linux-gnu");
+        let file = parse_file(name, url, "x86_64", "linux").unwrap();
+        assert!(matches!(file.kind, Compression::None(Archive::None)));
+
+        let (name, url) = make_filename_and_url("tailwindcss-linux-x64");
         let file = parse_file(name, url, "x86_64", "linux").unwrap();
         assert!(matches!(file.kind, Compression::None(Archive::None)));
 
