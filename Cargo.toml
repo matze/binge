@@ -22,3 +22,21 @@ xdg = "2.5.2"
 xz2 = "0.1.7"
 zip = "2.5.0"
 zstd = "0.13.3"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+cast_possible_truncation = "deny"
+cast_possible_wrap = "deny"
+cast_sign_loss = "deny"
+enum_glob_use = "deny"
+if_not_else = "deny"
+items_after_statements = "deny"
+missing_errors_doc = "allow"
+mut_mut = "deny"
+panic = "deny"
+similar_names = "deny"
+unicode_not_nfc = "deny"
+unwrap_used = "deny"
+used_underscore_binding = "deny"

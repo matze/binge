@@ -42,7 +42,7 @@ async fn progress<T>(message: &str) -> T {
     loop {
         let spinner = next_spinner.next().expect("cycle to provide");
         print!("\x1B[2K\r{message} {}", spinner.bright_black());
-        std::io::stdout().flush().unwrap();
+        std::io::stdout().flush().expect("flushing stdout");
         tokio::time::sleep(wait_duration).await;
     }
 }
@@ -128,16 +128,15 @@ async fn update(
     Manifest { version, binaries }: Manifest,
     token: Option<String>,
 ) -> Result<Manifest> {
-    let mut group = futures_concurrency::future::FutureGroup::new();
-    let client = gh::make_client(token)?;
-
-    let start = std::time::Instant::now();
-
     enum Update {
         NotFound(Binary),
         Installed { old: Binary, new: Binary },
         Error { old: Binary, err: anyhow::Error },
     }
+
+    let mut group = futures_concurrency::future::FutureGroup::new();
+    let client = gh::make_client(token)?;
+    let start = std::time::Instant::now();
 
     for binary in binaries {
         group.insert({

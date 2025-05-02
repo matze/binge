@@ -93,7 +93,10 @@ fn parse_archive(path: PathBuf) -> Archive {
         None => return Archive::None,
     };
 
-    let extension = extension.to_ascii_lowercase().into_string().unwrap();
+    let extension = extension
+        .to_ascii_lowercase()
+        .into_string()
+        .unwrap_or_default();
 
     if extension.as_str() == "tar" {
         Archive::Tar
@@ -108,7 +111,11 @@ fn parse_compression(mut path: PathBuf) -> Compression {
         None => return Compression::None(Archive::None),
     };
 
-    let extension = extension.to_ascii_lowercase().into_string().unwrap();
+    let extension = extension
+        .to_ascii_lowercase()
+        .into_string()
+        .unwrap_or_default();
+
     path.set_extension("");
 
     let archive = parse_archive(path);
@@ -142,7 +149,7 @@ fn parse_file(filename: String, url: Url, arch: &'static str, os: &str) -> Optio
 
     let filename = PathBuf::from(filename);
 
-    expr.find(filename.to_str().unwrap())?;
+    expr.find(filename.to_str()?)?;
 
     let kind = parse_compression(filename.clone());
 
