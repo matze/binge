@@ -14,7 +14,7 @@ use std::{
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct Manifest {
     /// Version of the manifest format.
-    pub version: String,
+    pub version: i64,
     /// Installed binaries.
     pub binaries: Vec<Binary>,
 }
