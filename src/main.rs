@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::{Shell, generate};
 use futures_lite::{FutureExt, StreamExt};
 use manifest::Repo;
@@ -31,7 +31,19 @@ enum Commands {
     /// Find and install updates for installed binaries.
     Update,
     /// List installed binaries
-    List,
+    List {
+        /// Dump the list in a format that can be used in the install command.
+        #[arg(value_enum, default_value_t = Format::Default)]
+        format: Format,
+    },
+}
+
+#[derive(Clone, ValueEnum)]
+enum Format {
+    /// Default list format with one binary per line.
+    Default,
+    /// List format suitable for the install command.
+    Install,
 }
 
 /// Print `message` and a spinner on the same line forever.
@@ -191,13 +203,38 @@ async fn update(
 }
 
 /// List all installed binaries in the `manifest`.
-fn list(manifest: &Manifest) -> Result<()> {
+fn list(manifest: &Manifest, format: Format) -> Result<()> {
     let mut binaries = manifest.binaries.iter().collect::<Vec<_>>();
 
     binaries.sort();
 
-    for binary in binaries {
-        println!("{} {}", binary.repo, binary.version);
+    match format {
+        Format::Default => {
+            for binary in binaries {
+                println!("{} {}", binary.repo, binary.version);
+            }
+        }
+        Format::Install => {
+            let output = binaries
+                .iter()
+                .map(|binary| {
+                    let Repo {
+                        owner,
+                        name,
+                        rename,
+                    } = &binary.repo;
+
+                    if let Some(rename) = rename {
+                        format!("{owner}/{name}:{rename}")
+                    } else {
+                        format!("{owner}/{name}")
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            println!("{output}");
+        }
     }
 
     Ok(())
@@ -226,7 +263,7 @@ async fn try_main() -> Result<()> {
             .save(&config)?,
         Commands::Uninstall { repos } => uninstall(repos, manifest)?.save(&config)?,
         Commands::Update => update(manifest, token).await?.save(&config)?,
-        Commands::List => list(&manifest)?,
+        Commands::List { format } => list(&manifest, format)?,
     }
 
     Ok(())

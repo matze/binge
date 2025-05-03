@@ -46,6 +46,18 @@ To update all binaries to their latest version use
 binge update
 ```
 
+You can list all binaries with
+
+```bash
+binge list
+```
+
+and get a list in a format suitable for `binge install` with
+
+```bash
+binge list install
+```
+
 
 ## Using a GitHub personal access token
 
