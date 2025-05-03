@@ -153,3 +153,36 @@ impl Manifest {
         self.binaries.iter().any(|binary| binary.repo == *repo)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn compare_repo() -> Result<()> {
+        assert!(Repo::from_str("foo/bar")? < Repo::from_str("foo/qux")?);
+        assert!(Repo::from_str("foo/bar")? < Repo::from_str("qux/bar")?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_repo() -> Result<()> {
+        assert!(Repo::from_str("foo").is_err());
+        assert!(Repo::from_str("foo/bar/baz").is_err());
+
+        let repo = Repo::from_str("foo/bar")?;
+        assert_eq!(repo.owner, "foo");
+        assert_eq!(repo.name, "bar");
+        assert!(repo.rename.is_none());
+
+        let repo = Repo::from_str("foo/bar:baz")?;
+        assert_eq!(repo.owner, "foo");
+        assert_eq!(repo.name, "bar");
+        let rename = repo.rename.unwrap();
+        assert_eq!(rename, "baz");
+
+        Ok(())
+    }
+}
