@@ -271,7 +271,15 @@ pub(crate) async fn update(client: reqwest::Client, binary: &Binary) -> Result<O
             .parent()
             .ok_or_else(|| anyhow!("no parent for path found"))?;
 
-        let _ = fetch_and_extract(client, dest_dir, assets).await?;
+        let mut path = fetch_and_extract(client, dest_dir, assets).await?;
+
+        if let Some(name) = &binary.repo.rename {
+            let from = path.clone();
+            path.pop();
+            path.push(name);
+
+            std::fs::rename(from, &path)?;
+        }
 
         return Ok(Some(Binary {
             repo: binary.repo.clone(),
