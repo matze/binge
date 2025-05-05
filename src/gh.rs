@@ -165,15 +165,23 @@ async fn fetch_and_extract(
     dest_dir: &Path,
     assets: Vec<Asset>,
 ) -> Result<PathBuf> {
-    let mut candidates = assets.into_iter().filter_map(
-        |Asset {
-             name,
-             url: browser_download_url,
-         }| {
-            let url: Url = browser_download_url.parse().ok()?;
-            parse_file(name, url, std::env::consts::ARCH, std::env::consts::OS)
-        },
-    );
+    let mut candidates = assets
+        .into_iter()
+        .filter_map(
+            |Asset {
+                 name,
+                 url: browser_download_url,
+             }| {
+                let url: Url = browser_download_url.parse().ok()?;
+                parse_file(name, url, std::env::consts::ARCH, std::env::consts::OS)
+            },
+        )
+        .filter(|f| {
+            f.filename
+                .extension()
+                .map(|ext| ext != "vsix")
+                .unwrap_or(true)
+        });
 
     if let Some(candidate) = candidates.next() {
         let tmp = tempfile::tempdir()?.into_path();
