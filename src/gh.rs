@@ -160,18 +160,6 @@ fn parse_file(filename: String, url: Url, arch: &'static str, os: &str) -> Optio
     })
 }
 
-fn rename_known_binaries(path: PathBuf) -> PathBuf {
-    if path
-        .as_os_str()
-        .to_str()
-        .is_some_and(|s| s.starts_with("rust-analyzer"))
-    {
-        PathBuf::from("rust-analyzer")
-    } else {
-        path
-    }
-}
-
 async fn fetch_and_extract(
     client: reqwest::Client,
     dest_dir: &Path,
@@ -204,10 +192,7 @@ async fn fetch_and_extract(
                 let input = flate2::read::GzDecoder::new(reader);
 
                 match archive {
-                    Archive::None => {
-                        let filename = rename_known_binaries(candidate.filename);
-                        extract::extract_single(input, dest_dir, &filename)?
-                    }
+                    Archive::None => extract::extract_single(input, dest_dir, &candidate.filename)?,
                     Archive::Zip => todo!(),
                     Archive::Tar => extract::extract_tar(input, dest_dir)?,
                 }
