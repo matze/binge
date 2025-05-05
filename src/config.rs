@@ -11,7 +11,7 @@ pub(crate) struct Config {
 impl Config {
     /// Load configuration or create a default one.
     pub(crate) fn new() -> Result<Self> {
-        let base_dir = BaseDirectories::with_prefix(env!("CARGO_PKG_NAME"))?;
+        let base_dir = BaseDirectories::with_prefix(env!("CARGO_PKG_NAME"));
 
         Ok(Self { base_dir })
     }
