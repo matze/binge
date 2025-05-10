@@ -78,6 +78,15 @@ them if a newer version is available.
 binge update
 ```
 
+### `binge rename <owner/repo>`
+
+Renames a binary that was previously installed by `binge`. Specify the binary
+and the new name using the `<owner>/<repo>:<custom>` format.
+
+```bash
+binge rename idursun/jjui:jjui
+```
+
 ### `binge list`
 
 Lists all binaries currently installed by `binge`.

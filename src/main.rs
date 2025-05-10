@@ -30,6 +30,8 @@ enum Commands {
     Uninstall { repos: Vec<Repo> },
     /// Find and install updates for installed binaries.
     Update,
+    /// Rename a binary.
+    Rename { repo: Repo },
     /// List installed binaries
     List {
         /// Dump the list in a format that can be used in the install command.
@@ -202,6 +204,33 @@ async fn update(
     Ok(Manifest { version, binaries })
 }
 
+/// Rename `repo` found in the manifest's binaries.
+fn rename(
+    repo: Repo,
+    Manifest {
+        version,
+        mut binaries,
+    }: Manifest,
+) -> Result<Manifest> {
+    let Some(new_name) = &repo.rename else {
+        return Ok(Manifest { version, binaries });
+    };
+
+    if let Some(index) = binaries.iter().position(|binary| binary.repo == repo) {
+        if let Some(elem) = binaries.get_mut(index) {
+            let from = elem.path.clone();
+
+            elem.path.pop();
+            elem.path.push(new_name);
+            std::fs::rename(&from, &elem.path)?;
+
+            println!("{} {:?} -> {:?}", "Renamed".bright_green(), from, elem.path);
+        }
+    }
+
+    Ok(Manifest { version, binaries })
+}
+
 /// List all installed binaries in the `manifest`.
 fn list(manifest: &Manifest, format: Format) -> Result<()> {
     let mut binaries = manifest.binaries.iter().collect::<Vec<_>>();
@@ -263,6 +292,7 @@ async fn try_main() -> Result<()> {
             .save(&config)?,
         Commands::Uninstall { repos } => uninstall(repos, manifest)?.save(&config)?,
         Commands::Update => update(manifest, token).await?.save(&config)?,
+        Commands::Rename { repo } => rename(repo, manifest)?.save(&config)?,
         Commands::List { format } => list(&manifest, format)?,
     }
 
