@@ -29,7 +29,7 @@ pub(crate) struct Binary {
     pub version: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq)]
 pub(crate) struct Repo {
     /// Owner of the repository
     pub owner: String,
@@ -37,6 +37,12 @@ pub(crate) struct Repo {
     pub name: String,
     /// Optional name of the binary
     pub rename: Option<String>,
+}
+
+impl PartialEq for Repo {
+    fn eq(&self, other: &Self) -> bool {
+        self.owner.eq(&other.owner) && self.name.eq(&other.name)
+    }
 }
 
 impl Ord for Repo {
