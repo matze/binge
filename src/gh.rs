@@ -184,7 +184,7 @@ async fn fetch_and_extract(
         });
 
     if let Some(candidate) = candidates.next() {
-        let tmp = tempfile::tempdir()?.into_path();
+        let tmp = PathBuf::from(tempfile::tempdir()?.as_ref());
         let filepath = tmp.join(&candidate.filename);
         let response = client.get(candidate.url).send().await?;
         let mut file = std::fs::File::create(&filepath)?;
