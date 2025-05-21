@@ -184,7 +184,7 @@ async fn fetch_and_extract(
         });
 
     if let Some(candidate) = candidates.next() {
-        let tmp = PathBuf::from(tempfile::tempdir()?.as_ref());
+        let tmp = tempfile::tempdir()?.keep();
         let filepath = tmp.join(&candidate.filename);
         let response = client.get(candidate.url).send().await?;
         let mut file = std::fs::File::create(&filepath)?;
@@ -264,14 +264,15 @@ pub(crate) async fn update(client: reqwest::Client, binary: &Binary) -> Result<O
 
     let Release { tag_name, assets } = client.get(url).send().await?.json().await?;
 
-    // TODO: semver comparison
     if binary.version != tag_name {
         let dest_dir = &binary
             .path
             .parent()
             .ok_or_else(|| anyhow!("no parent for path found"))?;
 
-        let mut path = fetch_and_extract(client, dest_dir, assets).await?;
+        let mut path = fetch_and_extract(client, dest_dir, assets)
+            .await
+            .with_context(|| format!("failed to extract"))?;
 
         if let Some(name) = &binary.repo.rename {
             let from = path.clone();
