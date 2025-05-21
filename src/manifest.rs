@@ -4,12 +4,7 @@ use crate::config::Config;
 use anyhow::{Result, anyhow};
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
-use std::{
-    cmp::Ordering,
-    fs::File,
-    io::{BufReader, BufWriter},
-    path::PathBuf,
-};
+use std::{cmp::Ordering, path::PathBuf};
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct Manifest {
@@ -125,7 +120,8 @@ impl Manifest {
         let path = config.manifest_path()?;
 
         if path.exists() {
-            Ok(serde_json::from_reader(BufReader::new(File::open(&path)?))?)
+            let serialized = std::fs::read_to_string(&path)?;
+            Ok(toml::from_str(&serialized)?)
         } else {
             Ok(Self::default())
         }
@@ -133,11 +129,8 @@ impl Manifest {
 
     pub(crate) fn save(self, config: &Config) -> Result<()> {
         let path = config.manifest_path()?;
-
-        Ok(serde_json::to_writer(
-            BufWriter::new(File::create(&path)?),
-            &self,
-        )?)
+        let serialized = toml::to_string_pretty(&self)?;
+        Ok(std::fs::write(path, serialized)?)
     }
 
     pub(crate) fn update(&mut self, binary: Binary) {

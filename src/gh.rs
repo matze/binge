@@ -1,5 +1,5 @@
 use crate::{Binary, Repo, extract};
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use regex::Regex;
 use reqwest::Url;
 use reqwest::header::{self, HeaderMap, HeaderValue};

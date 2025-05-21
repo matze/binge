@@ -18,7 +18,7 @@ impl Config {
 
     /// Return path to [`crate::manifest::Manifest`] file.
     pub(crate) fn manifest_path(&self) -> Result<PathBuf> {
-        Ok(self.base_dir.place_state_file("manifest.json")?)
+        Ok(self.base_dir.place_state_file("manifest.toml")?)
     }
 
     /// Return installation target directory. If not explicitly specified in the configuration,
