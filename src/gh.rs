@@ -254,42 +254,45 @@ pub(crate) async fn install(
     })
 }
 
-/// Try to update `binary`. Returns `Ok(Some(binary))` in case a new update has been found,
-/// otherwise `Ok(None)`.
-pub(crate) async fn update(client: reqwest::Client, binary: &Binary) -> Result<Option<Binary>> {
+/// Check if there is a new [`Release`] for `binary`.
+pub(crate) async fn check(client: reqwest::Client, binary: &Binary) -> Result<Option<Release>> {
     let url = reqwest::Url::parse(&format!(
         "https://api.github.com/repos/{}/{}/releases/latest",
         binary.repo.owner, binary.repo.name,
     ))?;
 
-    let Release { tag_name, assets } = client.get(url).send().await?.json().await?;
+    let release: Release = client.get(url).send().await?.json().await?;
+    Ok((binary.version != release.tag_name).then_some(release))
+}
 
-    if binary.version != tag_name {
-        let dest_dir = &binary
-            .path
-            .parent()
-            .ok_or_else(|| anyhow!("no parent for path found"))?;
+/// Try to update `binary` with `release` info. Returns `Ok(binary)` on successful update.
+pub(crate) async fn update(
+    client: reqwest::Client,
+    binary: &Binary,
+    Release { tag_name, assets }: Release,
+) -> Result<Binary> {
+    let dest_dir = &binary
+        .path
+        .parent()
+        .ok_or_else(|| anyhow!("no parent for path found"))?;
 
-        let mut path = fetch_and_extract(client, dest_dir, assets)
-            .await
-            .with_context(|| format!("failed to extract"))?;
+    let mut path = fetch_and_extract(client, dest_dir, assets)
+        .await
+        .with_context(|| format!("failed to extract"))?;
 
-        if let Some(name) = &binary.repo.rename {
-            let from = path.clone();
-            path.pop();
-            path.push(name);
+    if let Some(name) = &binary.repo.rename {
+        let from = path.clone();
+        path.pop();
+        path.push(name);
 
-            std::fs::rename(from, &path)?;
-        }
-
-        return Ok(Some(Binary {
-            repo: binary.repo.clone(),
-            path: binary.path.clone(),
-            version: tag_name,
-        }));
+        std::fs::rename(from, &path)?;
     }
 
-    Ok(None)
+    Ok(Binary {
+        repo: binary.repo.clone(),
+        path: binary.path.clone(),
+        version: tag_name,
+    })
 }
 
 #[cfg(test)]

@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::{Shell, generate};
 use futures_lite::{FutureExt, StreamExt};
+use gh::Release;
 use manifest::Repo;
 use manifest::{Binary, Manifest};
 use owo_colors::OwoColorize;
@@ -142,42 +143,101 @@ async fn update(
     Manifest { version, binaries }: Manifest,
     token: Option<String>,
 ) -> Result<Manifest> {
+    enum Check {
+        NotFound { binary: Binary },
+        Found { binary: Binary, release: Release },
+        Error { binary: Binary, err: anyhow::Error },
+    }
+
     enum Update {
-        NotFound(Binary),
+        None { binary: Binary },
         Installed { old: Binary, new: Binary },
-        Error { old: Binary, err: anyhow::Error },
+        Error { binary: Binary, err: anyhow::Error },
     }
 
     let mut group = futures_concurrency::future::FutureGroup::new();
     let client = gh::make_client(token)?;
-    let start = std::time::Instant::now();
 
     for binary in binaries {
         group.insert({
             let client = client.clone();
 
             async move {
-                match gh::update(client, &binary).await {
-                    Ok(None) => Update::NotFound(binary),
-                    Ok(Some(new)) => Update::Installed { old: binary, new },
-                    Err(err) => Update::Error { old: binary, err },
+                match gh::check(client, &binary).await {
+                    Ok(None) => Check::NotFound { binary },
+                    Ok(Some(release)) => Check::Found { binary, release },
+                    Err(err) => Check::Error { binary, err },
                 }
             }
         });
     }
 
     let group = std::pin::pin!(group);
-    let updates = group.collect::<Vec<_>>();
+    let checks = group.collect::<Vec<_>>();
     let message = format!("{} for new releases ...", "Checking".bright_green().bold());
-    let updates = updates.or(progress(&message)).await;
+    let checks = checks.or(progress(&message)).await;
+    println!("\x1B[2K\r{message} ✔️");
 
-    let end = std::time::Instant::now();
-    println!("\x1B[2K\r{message} took {:?}", end - start);
+    let to_update = checks
+        .iter()
+        .filter_map(|check| match check {
+            Check::NotFound { binary: _ } => None,
+            Check::Found { binary, release: _ } => Some(binary.repo.to_string()),
+            Check::Error { binary: _, err: _ } => None,
+        })
+        .collect::<Vec<_>>();
+
+    let have_updates = !to_update.is_empty();
+    let mut group = futures_concurrency::future::FutureGroup::new();
+    let mut others = Vec::new();
+
+    for check in checks {
+        match check {
+            Check::NotFound { binary } => {
+                others.push(Update::None { binary });
+            }
+            Check::Found {
+                binary: old,
+                release,
+            } => {
+                let client = client.clone();
+
+                group.insert(async move {
+                    match gh::update(client, &old, release).await {
+                        Ok(new) => Update::Installed { old, new },
+                        Err(err) => Update::Error { binary: old, err },
+                    }
+                });
+            }
+            Check::Error { binary, err } => {
+                others.push(Update::Error { binary, err });
+            }
+        }
+    }
+
+    let group = std::pin::pin!(group);
+    let updates = group.collect::<Vec<_>>();
+
+    let updates = if have_updates {
+        let message = format!(
+            "{} {} ...",
+            "Updating".bright_green().bold(),
+            to_update.join(", ")
+        );
+
+        let mut updates = updates.or(progress(&message)).await;
+        println!("\x1B[2K\r{message} ✔️");
+
+        updates.append(&mut others);
+        updates
+    } else {
+        others
+    };
 
     let binaries = updates
         .into_iter()
         .map(|update| match update {
-            Update::NotFound(old) => old,
+            Update::None { binary } => binary,
             Update::Installed { old, new } => {
                 println!(
                     "{} {} ({} -> {})",
@@ -189,14 +249,14 @@ async fn update(
 
                 new
             }
-            Update::Error { old, err } => {
+            Update::Error { binary, err } => {
                 eprintln!(
                     "{}: failed to update {}: {err:?}",
                     "Error".bright_red().bold(),
-                    old.repo,
+                    binary.repo,
                 );
 
-                old
+                binary
             }
         })
         .collect::<_>();
