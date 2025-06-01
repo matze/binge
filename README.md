@@ -134,6 +134,11 @@ shell.
 
 ## Configuration
 
+`binge` can be configured with a `binge.toml` file located in a standard XDG
+directory underneath the `binge` name. As of now it may contain a single
+`install_path` key pointing to the location where binaries are to be installed.
+
+
 ### GitHub Personal Access Token
 
 By default, `binge`'s interactions with the GitHub API may be subject to rate
