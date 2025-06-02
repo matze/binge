@@ -8,7 +8,7 @@ anyhow = "1.0.97"
 clap = { version = "4.5.34", features = ["derive"] }
 clap_complete = "4.5.47"
 flate2 = "1.1.1"
-futures-concurrency = "7.6.3"
+futures = { version = "0.3.31", default-features = false, features = ["alloc", "async-await"] }
 futures-lite = "2.6.0"
 owo-colors = "4.2.0"
 regex = "1.11.1"

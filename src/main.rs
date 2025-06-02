@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::{Shell, generate};
+use futures::stream::futures_unordered::FuturesUnordered;
 use futures_lite::{FutureExt, StreamExt};
 use gh::Release;
 use manifest::Repo;
@@ -82,13 +83,13 @@ async fn install(
     }
 
     let start = std::time::Instant::now();
-    let mut group = futures_concurrency::future::FutureGroup::new();
+    let group = FuturesUnordered::new();
 
     let client = gh::make_client(token)?;
     let install_path = config.install_path()?;
 
     for repo in to_be_installed {
-        group.insert({
+        group.push({
             let client = client.clone();
             let install_path = install_path.clone();
             async move { gh::install(client, repo, &install_path).await }
@@ -155,11 +156,11 @@ async fn update(
         Error { binary: Binary, err: anyhow::Error },
     }
 
-    let mut group = futures_concurrency::future::FutureGroup::new();
+    let group = FuturesUnordered::new();
     let client = gh::make_client(token)?;
 
     for binary in binaries {
-        group.insert({
+        group.push({
             let client = client.clone();
 
             async move {
@@ -188,7 +189,7 @@ async fn update(
         .collect::<Vec<_>>();
 
     let have_updates = !to_update.is_empty();
-    let mut group = futures_concurrency::future::FutureGroup::new();
+    let group = FuturesUnordered::new();
     let mut others = Vec::new();
 
     for check in checks {
@@ -202,7 +203,7 @@ async fn update(
             } => {
                 let client = client.clone();
 
-                group.insert(async move {
+                group.push(async move {
                     match gh::update(client, &old, release).await {
                         Ok(new) => Update::Installed { old, new },
                         Err(err) => Update::Error { binary: old, err },
