@@ -12,7 +12,7 @@ futures = { version = "0.3.31", default-features = false, features = ["alloc", "
 futures-lite = "2.6.0"
 owo-colors = "4.2.0"
 regex = "1.11.1"
-reqwest = { version = "0.12.15", features = ["brotli", "json", "zstd"] }
+reqwest = { version = "0.12.19", default-features = false, features = ["brotli", "http2", "json", "rustls-tls-native-roots", "zstd"] }
 serde = { version = "1.0.219", features = ["derive"] }
 tar = "0.4.44"
 tempfile = "3.19.1"
