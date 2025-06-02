@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+
+## 0.1.1
+
+**2025-06-02**
+
 ### Changed
 
 - Use Rustls instead of OpenSSL.
