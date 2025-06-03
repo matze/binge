@@ -28,16 +28,30 @@ maintains a manifest file to keep track of what has been installed and where.
 
 ## Installation
 
-As of now you have to run `binge` from source or install from a checkout with `cargo install --path .`
+### From release binaries
+
+You can install pre-built binaries from the [GitHub releases
+page](https://github.com/matze/binge/releases) and in case you have `binge`
+already installed use it to track itself:
+
+```bash
+binge install matze/binge
+```
+
+### From source
+
+You can also run it from source by cloning this repo and calling `cargo run` or
+install it via `cargo` with `cargo install --path .`
+
 
 ## Usage
 
-`binge` provides several subcommands to manage your installed binaries:
+`binge` provides several subcommands to install and manage installed binaries:
 
-### `binge install <owner/repo>...`
+### Installing binaries
 
-Installs one or more binaries from the specified GitHub repositories. The format
-for specifying a repository is `<owner>/<repo>`.
+`binge install` installs one or more binaries from the specified GitHub
+repositories. The format for specifying a repository is `<owner>/<repo>`.
 
 ```bash
 binge install sharkdp/fd BurntSushi/ripgrep
@@ -60,36 +74,36 @@ This will download the binary from `idursun/jjui` that contains an
 architecture-specific suffix but install it as `jjui` in your installation
 directory.
 
-### `binge uninstall <owner/repo>...`
+### Uninstalling binaries
 
-Uninstalls one or more binaries that were previously installed by `binge`.
-Specify the binaries using the `<owner>/<repo>` format.
+`binge uninstall` uninstalls one or more binaries that were previously installed
+by `binge`. Specify the binaries using the `<owner>/<repo>` format.
 
 ```bash
 binge uninstall sharkdp/fd BurntSushi/ripgrep
 ```
 
-### `binge update`
+### Looking for updates
 
-Checks all currently installed binaries for new releases on GitHub and updates
-them if a newer version is available.
+`binge update` checks all currently installed binaries for new releases on
+GitHub and updates them if a newer version is available.
 
 ```bash
 binge update
 ```
 
-### `binge rename <owner/repo>`
+### Renaming binaries
 
-Renames a binary that was previously installed by `binge`. Specify the binary
-and the new name using the `<owner>/<repo>:<custom>` format.
+`binge rename` renames a binary that was previously installed by `binge`.
+Specify the binary and the new name using the `<owner>/<repo>:<custom>` format.
 
 ```bash
 binge rename idursun/jjui:jjui
 ```
 
-### `binge list`
+### Listing installed binaries
 
-Lists all binaries currently installed by `binge`.
+`binge list` lists all binaries currently installed by `binge`.
 
 ```bash
 binge list
@@ -119,10 +133,11 @@ sharkdp/fd BurntSushi/ripgrep idursun/jjui:jjui
 This output can be useful for reinstalling the same set of binaries on another
 machine or after a system reinstallation.
 
-### `binge completion <shell>`
+### Generating completion scripts
 
-Generates shell completion scripts for your preferred shell. Replace `<shell>`
-with your shell's name (e.g., `bash`, `zsh`, `fish`, `powershell`, `elvish`).
+`binge completion` generates shell completion scripts for your preferred shell.
+Replace `<shell>` with your shell's name (e.g., `bash`, `zsh`, `fish`,
+`powershell`, `elvish`).
 
 ```bash
 binge completion bash
