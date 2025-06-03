@@ -46,7 +46,7 @@ jobs:
         shell: bash
         run: |
           mv target/${{ matrix.target }}/release/binge${{ matrix.suffix }} .
-          tar cvzf binge_${{ github.event.release.tag_name }}_${{ matrix.target }}.tar.zst LICENSE README.md binge${{ matrix.suffix }}
+          tar --zstd -cf binge_${{ github.event.release.tag_name }}_${{ matrix.target }}.tar.zst LICENSE README.md binge${{ matrix.suffix }}
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
