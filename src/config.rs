@@ -23,7 +23,7 @@ impl Config {
 
         let toml = base_dir
             .find_config_file("binge.toml")
-            .map(|path| std::fs::read_to_string(path))
+            .map(std::fs::read_to_string)
             .transpose()?
             .map(|content| toml::from_str(&content))
             .transpose()?;

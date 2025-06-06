@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 /// Write final binary.
 fn write<R: Read>(mut input: R, dest: &Path, mode: u32) -> Result<()> {
-    let mut output = File::create(&dest)?;
+    let mut output = File::create(dest)?;
     copy(&mut input, &mut output)?;
 
     let mut permissions = output.metadata()?.permissions();

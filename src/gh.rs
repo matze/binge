@@ -278,7 +278,7 @@ pub(crate) async fn update(
 
     let mut path = fetch_and_extract(client, dest_dir, assets)
         .await
-        .with_context(|| format!("failed to extract"))?;
+        .with_context(|| "failed to extract".to_string())?;
 
     if let Some(name) = &binary.repo.rename {
         let from = path.clone();

@@ -129,7 +129,7 @@ async fn install(
 fn uninstall(repos: Vec<Repo>, Manifest { version, binaries }: Manifest) -> Result<Manifest> {
     let (to_be_uninstalled, binaries): (Vec<_>, Vec<_>) = binaries
         .into_iter()
-        .partition(|binary| repos.iter().any(|repo| *repo == binary.repo));
+        .partition(|binary| repos.contains(&binary.repo));
 
     for binary in to_be_uninstalled {
         std::fs::remove_file(&binary.path)?;
