@@ -3,6 +3,15 @@
 ## Unreleased
 
 
+## 0.1.3
+
+**2025-06-16**
+
+### Changed
+
+- Update dependencies and move from xz2 to liblzma.
+
+
 ## 0.1.2
 
 **2025-06-03**
