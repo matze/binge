@@ -210,7 +210,7 @@ async fn fetch_and_extract(
                 extract::extract_tar(input, dest_dir)?
             }
             Compression::Xz(Archive::Tar) => {
-                let input = xz2::read::XzDecoder::new(reader);
+                let input = liblzma::read::XzDecoder::new(reader);
                 extract::extract_tar(input, dest_dir)?
             }
             Compression::None(Archive::None) => {
