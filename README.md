@@ -12,9 +12,10 @@ Similar in concept to tools like [eget](https://github.com/zyedidia/eget) and
 [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), `binge`
 distinguishes itself by:
 
-* Keeping track of installed binaries, allowing for easy updates.
+* Keeping track of installed binaries, allowing for easy updates (unlike `eget`.
 * Not being restricted to projects written in Rust (unlike `cargo-binstall`).
 * Offering a simple and focused command-line interface.
+* Async first for best performance.
 
 `binge` works by inspecting the releases of a given GitHub repository,
 identifying a suitable binary artifact for your system's architecture,
