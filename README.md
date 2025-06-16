@@ -15,7 +15,8 @@ distinguishes itself by:
 * Keeping track of installed binaries, allowing for easy updates (unlike `eget`.
 * Not being restricted to projects written in Rust (unlike `cargo-binstall`).
 * Offering a simple and focused command-line interface.
-* Async first for best performance.
+* Async first and streaming archive extraction for best performance using
+  minimal resources.
 
 `binge` works by inspecting the releases of a given GitHub repository,
 identifying a suitable binary artifact for your system's architecture,
