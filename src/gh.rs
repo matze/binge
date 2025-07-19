@@ -142,8 +142,7 @@ fn parse_file(filename: String, url: Url, arch: &'static str, os: &str) -> Optio
     let arch = alt_arch_os(arch);
 
     let expr = Regex::new(&format!(
-        "^.*({}-[\\w\\d-]*{}|[\\w\\d-]*{}-{}).*$",
-        arch, os, os, arch
+        "^.*({arch}-[\\w\\d-]*{os}|[\\w\\d-]*{os}-{arch}).*$"
     ))
     .expect("compiling the regex");
 
