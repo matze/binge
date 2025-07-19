@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+
+## 0.2.0
+
+**2025-07-19**
+
 ### Added
 
 - `check` subcommand that looks for updates but does not install them.
