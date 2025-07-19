@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `check` subcommand that looks for updates but does not install them.
+
 
 ## 0.1.3
 

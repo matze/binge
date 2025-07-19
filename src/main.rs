@@ -32,6 +32,8 @@ enum Commands {
     Uninstall { repos: Vec<Repo> },
     /// Find and install updates for installed binaries.
     Update,
+    /// Check for updates but do not install them.
+    Check,
     /// Rename a binary.
     Rename { repo: Repo },
     /// List installed binaries
@@ -265,6 +267,56 @@ async fn update(
     Ok(Manifest { version, binaries })
 }
 
+/// Concurrently check all installed binaries listed in the manifest.
+async fn check(manifest: Manifest, token: Option<String>) -> Result<()> {
+    enum Check {
+        Update { binary: Binary, release: Release },
+        Error { err: anyhow::Error },
+    }
+
+    let group = FuturesUnordered::new();
+    let client = gh::make_client(token)?;
+
+    for binary in manifest.binaries {
+        group.push({
+            let client = client.clone();
+
+            async move {
+                match gh::check(client, &binary).await {
+                    Ok(None) => None,
+                    Ok(Some(release)) => Some(Check::Update { binary, release }),
+                    Err(err) => Some(Check::Error { err }),
+                }
+            }
+        });
+    }
+
+    let group = std::pin::pin!(group);
+    let checks = group.filter_map(|x| x).collect::<Vec<_>>();
+    let message = format!("{} for new releases ...", "Checking".bright_green().bold());
+    let checks = checks.or(progress(&message)).await;
+    println!("\x1B[2K\r{message} ✔️");
+
+    for check in checks {
+        match check {
+            Check::Update { binary, release } => {
+                println!(
+                    "{} {} ({} -> {})",
+                    "Found".bright_green(),
+                    binary.repo,
+                    binary.version,
+                    release.tag_name
+                );
+            }
+            Check::Error { err } => {
+                eprintln!("{err}");
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Rename `repo` found in the manifest's binaries.
 fn rename(
     repo: Repo,
@@ -353,6 +405,7 @@ async fn try_main() -> Result<()> {
             .save(&config)?,
         Commands::Uninstall { repos } => uninstall(repos, manifest)?.save(&config)?,
         Commands::Update => update(manifest, token).await?.save(&config)?,
+        Commands::Check => check(manifest, token).await?,
         Commands::Rename { repo } => rename(repo, manifest)?.save(&config)?,
         Commands::List { format } => list(&manifest, format)?,
     }
