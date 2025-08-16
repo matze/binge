@@ -45,14 +45,15 @@ pub(crate) fn extract_tar<R: Read>(input: R, dest_dir: &Path) -> Result<PathBuf>
         let entry = entry?;
         let header = entry.header();
 
-        if let Ok(mode) = header.mode() {
-            if (mode & 0o100) != 0 && header.entry_type() == tar::EntryType::Regular {
-                let path = entry.path()?;
-                let name = path.file_name().ok_or_else(|| anyhow!("no filename"))?;
-                let dest = dest_dir.join(name);
-                write(entry, &dest, mode)?;
-                return Ok(dest);
-            }
+        if let Ok(mode) = header.mode()
+            && (mode & 0o100) != 0
+            && header.entry_type() == tar::EntryType::Regular
+        {
+            let path = entry.path()?;
+            let name = path.file_name().ok_or_else(|| anyhow!("no filename"))?;
+            let dest = dest_dir.join(name);
+            write(entry, &dest, mode)?;
+            return Ok(dest);
         }
     }
 

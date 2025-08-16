@@ -329,16 +329,16 @@ fn rename(
         return Ok(Manifest { version, binaries });
     };
 
-    if let Some(index) = binaries.iter().position(|binary| binary.repo == repo) {
-        if let Some(elem) = binaries.get_mut(index) {
-            let from = elem.path.clone();
+    if let Some(index) = binaries.iter().position(|binary| binary.repo == repo)
+        && let Some(elem) = binaries.get_mut(index)
+    {
+        let from = elem.path.clone();
 
-            elem.path.pop();
-            elem.path.push(new_name);
-            std::fs::rename(&from, &elem.path)?;
+        elem.path.pop();
+        elem.path.push(new_name);
+        std::fs::rename(&from, &elem.path)?;
 
-            println!("{} {:?} -> {:?}", "Renamed".bright_green(), from, elem.path);
-        }
+        println!("{} {:?} -> {:?}", "Renamed".bright_green(), from, elem.path);
     }
 
     Ok(Manifest { version, binaries })
