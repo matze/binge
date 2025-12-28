@@ -1,13 +1,11 @@
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::{Shell, generate};
-use futures::stream::futures_unordered::FuturesUnordered;
-use futures_lite::{FutureExt, StreamExt};
+use futures_lite::StreamExt;
 use gh::Release;
 use manifest::Repo;
 use manifest::{Binary, Manifest};
 use owo_colors::OwoColorize;
-use std::{io::Write, time::Duration};
 
 mod config;
 mod extract;
@@ -52,18 +50,9 @@ enum Format {
     Install,
 }
 
-/// Print `message` and a spinner on the same line forever.
-async fn progress<T>(message: &str) -> T {
-    let mut next_spinner = ["⠖", "⠲", "⠴", "⠦"].into_iter().cycle();
-    let wait_duration = Duration::from_millis(100);
+const SPINNER: strides::spinner::Spinner = strides::spinner::styles::DOTS_3;
 
-    loop {
-        let spinner = next_spinner.next().expect("cycle to provide");
-        print!("\x1B[2K\r{message} {}", spinner.bright_black());
-        std::io::stdout().flush().expect("flushing stdout");
-        tokio::time::sleep(wait_duration).await;
-    }
-}
+const SPINNER_STYLE: owo_colors::Style = owo_colors::Style::new().bold().bright_green();
 
 /// Install all `repose` and update the `manifest`.
 async fn install(
@@ -84,27 +73,26 @@ async fn install(
         println!("{} already installed", already_installed.join(", "));
     }
 
-    let start = std::time::Instant::now();
-    let group = FuturesUnordered::new();
+    let mut group =
+        strides::future::Monitored::new(SPINNER.ticks()).with_spinner_style(SPINNER_STYLE);
 
     let client = gh::make_client(token)?;
     let install_path = config.install_path()?;
 
     for repo in to_be_installed {
-        group.push({
-            let client = client.clone();
-            let install_path = install_path.clone();
-            async move { gh::install(client, repo, &install_path).await }
-        });
+        let message = format!("installing {repo} ...");
+
+        group.push(
+            {
+                let client = client.clone();
+                let install_path = install_path.clone();
+                Box::pin(async move { gh::install(client, repo, &install_path).await })
+            },
+            message,
+        );
     }
 
-    let group = std::pin::pin!(group);
-    let results = group.collect::<Vec<_>>();
-
-    let message = format!("{} ...", "Installing".bright_green().bold());
-    let results = results.or(progress(&message)).await;
-    let end = std::time::Instant::now();
-    println!("\x1B[2K\r{message} took {:?}", end - start);
+    let results = group.collect::<Vec<_>>().await;
 
     for result in results {
         match result {
@@ -158,28 +146,31 @@ async fn update(
         Error { binary: Binary, err: anyhow::Error },
     }
 
-    let group = FuturesUnordered::new();
+    let mut group =
+        strides::future::Monitored::new(SPINNER.ticks()).with_spinner_style(SPINNER_STYLE);
+
     let client = gh::make_client(token)?;
 
     for binary in binaries {
-        group.push({
-            let client = client.clone();
+        let message = format!("checking {} ...", binary.repo);
 
-            async move {
-                match gh::check(client, &binary).await {
-                    Ok(None) => Check::NotFound { binary },
-                    Ok(Some(release)) => Check::Found { binary, release },
-                    Err(err) => Check::Error { binary, err },
-                }
-            }
-        });
+        group.push(
+            {
+                let client = client.clone();
+
+                Box::pin(async move {
+                    match gh::check(client, &binary).await {
+                        Ok(None) => Check::NotFound { binary },
+                        Ok(Some(release)) => Check::Found { binary, release },
+                        Err(err) => Check::Error { binary, err },
+                    }
+                })
+            },
+            message,
+        );
     }
 
-    let group = std::pin::pin!(group);
-    let checks = group.collect::<Vec<_>>();
-    let message = format!("{} for new releases ...", "Checking".bright_green().bold());
-    let checks = checks.or(progress(&message)).await;
-    println!("\x1B[2K\r{message} ✔️");
+    let checks = group.collect::<Vec<_>>().await;
 
     let to_update = checks
         .iter()
@@ -191,7 +182,10 @@ async fn update(
         .collect::<Vec<_>>();
 
     let have_updates = !to_update.is_empty();
-    let group = FuturesUnordered::new();
+
+    let mut group =
+        strides::future::Monitored::new(SPINNER.ticks()).with_spinner_style(SPINNER_STYLE);
+
     let mut others = Vec::new();
 
     for check in checks {
@@ -204,13 +198,17 @@ async fn update(
                 release,
             } => {
                 let client = client.clone();
+                let message = format!("updating {}", old.repo);
 
-                group.push(async move {
-                    match gh::update(client, &old, release).await {
-                        Ok(new) => Update::Installed { old, new },
-                        Err(err) => Update::Error { binary: old, err },
-                    }
-                });
+                group.push(
+                    Box::pin(async move {
+                        match gh::update(client, &old, release).await {
+                            Ok(new) => Update::Installed { old, new },
+                            Err(err) => Update::Error { binary: old, err },
+                        }
+                    }),
+                    message,
+                );
             }
             Check::Error { binary, err } => {
                 others.push(Update::Error { binary, err });
@@ -218,18 +216,8 @@ async fn update(
         }
     }
 
-    let group = std::pin::pin!(group);
-    let updates = group.collect::<Vec<_>>();
-
     let updates = if have_updates {
-        let message = format!(
-            "{} {} ...",
-            "Updating".bright_green().bold(),
-            to_update.join(", ")
-        );
-
-        let mut updates = updates.or(progress(&message)).await;
-        println!("\x1B[2K\r{message} ✔️");
+        let mut updates = group.collect::<Vec<_>>().await;
 
         updates.append(&mut others);
         updates
@@ -274,28 +262,31 @@ async fn check(manifest: Manifest, token: Option<String>) -> Result<()> {
         Error { err: anyhow::Error },
     }
 
-    let group = FuturesUnordered::new();
+    let mut group =
+        strides::future::Monitored::new(SPINNER.ticks()).with_spinner_style(SPINNER_STYLE);
+
     let client = gh::make_client(token)?;
 
     for binary in manifest.binaries {
-        group.push({
-            let client = client.clone();
+        let message = format!("checking {} ...", binary.repo);
 
-            async move {
-                match gh::check(client, &binary).await {
-                    Ok(None) => None,
-                    Ok(Some(release)) => Some(Check::Update { binary, release }),
-                    Err(err) => Some(Check::Error { err }),
-                }
-            }
-        });
+        group.push(
+            {
+                let client = client.clone();
+
+                Box::pin(async move {
+                    match gh::check(client, &binary).await {
+                        Ok(None) => None,
+                        Ok(Some(release)) => Some(Check::Update { binary, release }),
+                        Err(err) => Some(Check::Error { err }),
+                    }
+                })
+            },
+            message,
+        );
     }
 
-    let group = std::pin::pin!(group);
-    let checks = group.filter_map(|x| x).collect::<Vec<_>>();
-    let message = format!("{} for new releases ...", "Checking".bright_green().bold());
-    let checks = checks.or(progress(&message)).await;
-    println!("\x1B[2K\r{message} ✔️");
+    let checks = group.filter_map(|x| x).collect::<Vec<_>>().await;
 
     for check in checks {
         match check {
