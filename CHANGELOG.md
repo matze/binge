@@ -3,6 +3,15 @@
 ## Unreleased
 
 
+## 0.2.2
+
+**2026-02-21**
+
+### Fixed
+
+- Broken release pipeline.
+
+
 ## 0.2.1
 
 **2026-02-21**
