@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- Temporary download directories and files are removed from the file system thus
+  avoiding waste of space on long-running systems.
+
 
 ## 0.2.0
 
