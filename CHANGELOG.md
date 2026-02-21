@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+
+## 0.2.1
+
+**2026-02-21**
+
 ### Fixed
 
 - Temporary download directories and files are removed from the file system thus
