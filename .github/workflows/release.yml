@@ -38,7 +38,7 @@ jobs:
         uses: houseabsolute/actions-rust-cross@v0
         with:
           target: ${{ matrix.target }}
-          toolchain: 1.87.0
+          toolchain: 1.93.0
           args: "--locked --release"
           strip: true
 
