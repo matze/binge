@@ -6,6 +6,9 @@
 
 - Temporary download directories and files are removed from the file system thus
   avoiding waste of space on long-running systems.
+- Remove the corresponding entry for a binary during uninstall even if it does
+  not exist anymore. Previously, the entry would still be present and prevent
+  re-installation.
 
 
 ## 0.2.0

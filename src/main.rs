@@ -122,7 +122,10 @@ fn uninstall(repos: Vec<Repo>, Manifest { version, binaries }: Manifest) -> Resu
         .partition(|binary| repos.contains(&binary.repo));
 
     for binary in to_be_uninstalled {
-        std::fs::remove_file(&binary.path)?;
+        if let Err(err) = std::fs::remove_file(&binary.path) {
+            eprintln!("failed to remove {:?}: {err}", binary.path);
+        }
+
         println!("{} {}", "Uninstalled".bright_green().bold(), binary.repo);
     }
 
