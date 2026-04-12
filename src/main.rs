@@ -74,7 +74,7 @@ async fn install(
     }
 
     let mut group =
-        strides::future::Monitored::new(SPINNER.ticks()).with_spinner_style(SPINNER_STYLE);
+        strides::future::Monitored::new(SPINNER).with_spinner_style(SPINNER_STYLE);
 
     let client = gh::make_client(token)?;
     let install_path = config.install_path()?;
@@ -150,7 +150,7 @@ async fn update(
     }
 
     let mut group =
-        strides::future::Monitored::new(SPINNER.ticks()).with_spinner_style(SPINNER_STYLE);
+        strides::future::Monitored::new(SPINNER).with_spinner_style(SPINNER_STYLE);
 
     let client = gh::make_client(token)?;
 
@@ -187,7 +187,7 @@ async fn update(
     let have_updates = !to_update.is_empty();
 
     let mut group =
-        strides::future::Monitored::new(SPINNER.ticks()).with_spinner_style(SPINNER_STYLE);
+        strides::future::Monitored::new(SPINNER).with_spinner_style(SPINNER_STYLE);
 
     let mut others = Vec::new();
 
@@ -266,7 +266,7 @@ async fn check(manifest: Manifest, token: Option<String>) -> Result<()> {
     }
 
     let mut group =
-        strides::future::Monitored::new(SPINNER.ticks()).with_spinner_style(SPINNER_STYLE);
+        strides::future::Monitored::new(SPINNER).with_spinner_style(SPINNER_STYLE);
 
     let client = gh::make_client(token)?;
 

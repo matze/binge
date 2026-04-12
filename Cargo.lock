@@ -1816,9 +1816,9 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "strides"
-version = "0.0.0"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b3c5ccb1e0f65384936f9a870df9dbe3fa5db22d4c285f84ff9ac43c0bc8e85"
+checksum = "699a0a13e1f9328e07fcc762a6772d482c4c6b98c7dba1977863584387ffb072"
 dependencies = [
  "async-io",
  "crossterm",
