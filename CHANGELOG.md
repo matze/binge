@@ -3,6 +3,16 @@
 ## Unreleased
 
 
+## 0.3.0
+
+**2026-05-10**
+
+### Changed
+
+- Decompress binaries asynchronously, improving performance and avoiding
+  intermediate archive copies on disk.
+
+
 ## 0.2.2
 
 **2026-02-21**
