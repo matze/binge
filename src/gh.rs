@@ -1,12 +1,11 @@
 use crate::{Binary, Repo, extract};
 use anyhow::{Context, Result, anyhow};
+use futures_lite::StreamExt;
 use regex::Regex;
 use reqwest::Url;
 use reqwest::header::{self, HeaderMap, HeaderValue};
 use serde::Deserialize;
-use std::io::BufReader;
-use std::path::Path;
-use std::{io::Cursor, path::PathBuf};
+use std::path::{Path, PathBuf};
 
 /// API release.
 #[derive(Deserialize, Debug)]
@@ -183,38 +182,38 @@ async fn fetch_and_extract(
         });
 
     if let Some(candidate) = candidates.next() {
-        let tmp = tempfile::tempdir()?;
-        let filepath = tmp.path().join(&candidate.filename);
         let response = client.get(candidate.url).send().await?;
-        let mut file = std::fs::File::create(&filepath)?;
-        let mut content = Cursor::new(response.bytes().await?);
-        std::io::copy(&mut content, &mut file)?;
-
-        let reader = BufReader::new(std::fs::File::open(PathBuf::from(&filepath))?);
 
         let path = match candidate.kind {
-            Compression::None(Archive::Zip) => extract::extract_zip(reader, dest_dir)?,
-            Compression::None(Archive::Tar) => extract::extract_tar(reader, dest_dir)?,
-            Compression::Gz(archive) => {
-                let input = flate2::read::GzDecoder::new(reader);
-
-                match archive {
-                    Archive::None => extract::extract_single(input, dest_dir, &candidate.filename)?,
-                    Archive::Zip => todo!(),
-                    Archive::Tar => extract::extract_tar(input, dest_dir)?,
-                }
+            Compression::None(Archive::Zip) => {
+                extract::extract_zip(response.bytes().await?, dest_dir).await?
             }
-            Compression::Zstd(Archive::Tar) => {
-                let input = zstd::Decoder::new(reader)?;
-                extract::extract_tar(input, dest_dir)?
-            }
-            Compression::Xz(Archive::Tar) => {
-                let input = liblzma::read::XzDecoder::new(reader);
-                extract::extract_tar(input, dest_dir)?
-            }
+            //     Compression::None(Archive::Tar) => extract::extract_tar(reader, dest_dir)?,
+            //     Compression::Gz(archive) => {
+            //         let input = flate2::read::GzDecoder::new(reader);
+            //
+            //         match archive {
+            //             Archive::None => extract::extract_single(input, dest_dir, &candidate.filename)?,
+            //             Archive::Zip => todo!(),
+            //             Archive::Tar => extract::extract_tar(input, dest_dir)?,
+            //         }
+            //     }
+            //     Compression::Zstd(Archive::Tar) => {
+            //         let input = zstd::Decoder::new(reader)?;
+            //         extract::extract_tar(input, dest_dir)?
+            //     }
+            //     Compression::Xz(Archive::Tar) => {
+            //         let input = liblzma::read::XzDecoder::new(reader);
+            //         extract::extract_tar(input, dest_dir)?
+            //     }
             Compression::None(Archive::None) => {
-                // TODO: it's a bit wasteful because we copy the file twice.
-                extract::extract_single(reader, dest_dir, &candidate.filename)?
+                let stream = response.bytes_stream().then(|b| async {
+                    b.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+                });
+                let read = std::pin::pin!(tokio_util::io::StreamReader::new(stream));
+                let path = dest_dir.join(candidate.filename);
+                extract::write_async(read, &path, 0o755).await?;
+                path
             }
             missing => todo!("{missing:?}"),
         };
