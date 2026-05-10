@@ -1,11 +1,13 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, anyhow};
-use futures_lite::StreamExt;
+use futures_lite::{Stream, StreamExt};
 use regex::Regex;
 use reqwest::Url;
 use reqwest::header::{self, HeaderMap, HeaderValue};
 use serde::Deserialize;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio_util::bytes::Bytes;
 
 use crate::{Binary, Repo, extract};
 
@@ -160,10 +162,37 @@ fn parse_file(filename: String, url: Url, arch: &'static str, os: &str) -> Optio
     })
 }
 
+/// Wrap a `reqwest::Response`'s byte stream so each chunk reports the cumulative download fraction
+/// to `tx`. If the response did not advertise a `Content-Length`, no progress is emitted.
+fn report_progress(
+    response: reqwest::Response,
+    tx: &UnboundedSender<f64>,
+) -> impl Stream<Item = reqwest::Result<Bytes>> + use<> {
+    let total = response.content_length().filter(|n| *n > 0);
+    let tx = tx.clone();
+
+    response
+        .bytes_stream()
+        .scan(0u64, move |downloaded, chunk| {
+            if let Ok(c) = &chunk {
+                *downloaded = downloaded.saturating_add(u64::try_from(c.len()).unwrap_or(u64::MAX));
+
+                if let Some(total) = total {
+                    #[allow(clippy::cast_precision_loss)]
+                    let p = *downloaded as f64 / total as f64;
+                    let _ = tx.send(p);
+                }
+            }
+
+            Some(chunk)
+        })
+}
+
 async fn fetch_and_extract(
     client: reqwest::Client,
     dest_dir: &Path,
     assets: Vec<Asset>,
+    progress: UnboundedSender<f64>,
 ) -> Result<PathBuf> {
     let mut candidates = assets
         .into_iter()
@@ -185,17 +214,25 @@ async fn fetch_and_extract(
 
     if let Some(candidate) = candidates.next() {
         let response = client.get(candidate.url).send().await?;
+        let bytes = report_progress(response, &progress);
 
         let path = match candidate.kind {
             Compression::None(Archive::Zip) => {
-                extract::extract_zip(response.bytes().await?, dest_dir).await?
+                let mut buffer = Vec::new();
+                let mut bytes = std::pin::pin!(bytes);
+
+                while let Some(chunk) = bytes.next().await {
+                    buffer.extend_from_slice(&chunk?);
+                }
+
+                extract::extract_zip(buffer, dest_dir).await?
             }
             Compression::None(Archive::Tar) => {
-                let read = std::pin::pin!(response_to_stream_reader(response));
+                let read = std::pin::pin!(stream_to_reader(bytes));
                 extract::extract_tar(read, dest_dir).await?
             }
             Compression::Gz(archive) => {
-                let read = response_to_stream_reader(response);
+                let read = stream_to_reader(bytes);
                 let read = tokio::io::BufReader::new(read);
                 let input = async_compression::tokio::bufread::GzipDecoder::new(read);
 
@@ -210,19 +247,19 @@ async fn fetch_and_extract(
                 }
             }
             Compression::Zstd(Archive::Tar) => {
-                let read = response_to_stream_reader(response);
+                let read = stream_to_reader(bytes);
                 let read = tokio::io::BufReader::new(read);
                 let input = async_compression::tokio::bufread::ZstdDecoder::new(read);
                 extract::extract_tar(input, dest_dir).await?
             }
             Compression::Xz(Archive::Tar) => {
-                let read = response_to_stream_reader(response);
+                let read = stream_to_reader(bytes);
                 let read = tokio::io::BufReader::new(read);
                 let input = async_compression::tokio::bufread::XzDecoder::new(read);
                 extract::extract_tar(input, dest_dir).await?
             }
             Compression::None(Archive::None) => {
-                let read = std::pin::pin!(response_to_stream_reader(response));
+                let read = std::pin::pin!(stream_to_reader(bytes));
                 let path = dest_dir.join(candidate.filename);
                 extract::write_async(read, &path, 0o755).await?;
                 path
@@ -236,10 +273,10 @@ async fn fetch_and_extract(
     Err(anyhow!("no asset found"))
 }
 
-fn response_to_stream_reader(response: reqwest::Response) -> impl tokio::io::AsyncRead + Unpin {
-    let stream = response
-        .bytes_stream()
-        .then(|b| async { b.map_err(std::io::Error::other) });
+fn stream_to_reader(
+    stream: impl Stream<Item = reqwest::Result<Bytes>>,
+) -> impl tokio::io::AsyncRead + Unpin {
+    let stream = stream.then(|b| async { b.map_err(std::io::Error::other) });
 
     Box::pin(tokio_util::io::StreamReader::new(stream))
 }
@@ -249,13 +286,14 @@ pub(crate) async fn install(
     client: reqwest::Client,
     repo: Repo,
     dest_dir: &Path,
+    progress: UnboundedSender<f64>,
 ) -> Result<Binary> {
     let url = reqwest::Url::parse(&format!(
         "https://api.github.com/repos/{}/{}/releases/latest",
         repo.owner, repo.name,
     ))?;
     let Release { tag_name, assets } = client.get(url).send().await?.json().await?;
-    let mut path = fetch_and_extract(client, dest_dir, assets).await?;
+    let mut path = fetch_and_extract(client, dest_dir, assets, progress).await?;
 
     if let Some(name) = &repo.rename {
         let from = path.clone();
@@ -288,13 +326,14 @@ pub(crate) async fn update(
     client: reqwest::Client,
     binary: &Binary,
     Release { tag_name, assets }: Release,
+    progress: UnboundedSender<f64>,
 ) -> Result<Binary> {
     let dest_dir = &binary
         .path
         .parent()
         .ok_or_else(|| anyhow!("no parent for path found"))?;
 
-    let mut path = fetch_and_extract(client, dest_dir, assets)
+    let mut path = fetch_and_extract(client, dest_dir, assets, progress)
         .await
         .with_context(|| "failed to extract".to_string())?;
 

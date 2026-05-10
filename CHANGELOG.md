@@ -6,6 +6,10 @@
 
 - GitHub token fallback to `gh auth token` when `GITHUB_TOKEN` is not set.
 
+### Changed
+
+- Show a progress bar for install/update progress.
+
 
 ## 0.3.0
 

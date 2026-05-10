@@ -183,6 +183,7 @@ dependencies = [
  "serde",
  "strides",
  "tokio",
+ "tokio-stream",
  "tokio-util",
  "toml",
  "xdg",
@@ -479,27 +480,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
 
 [[package]]
-name = "futures"
-version = "0.3.32"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b147ee9d1f6d097cef9ce628cd2ee62288d963e16fb287bd9286455b241382d"
-dependencies = [
- "futures-channel",
- "futures-core",
- "futures-io",
- "futures-sink",
- "futures-task",
- "futures-util",
-]
-
-[[package]]
 name = "futures-channel"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07bbe89c50d7a535e539b8c17bc0b49bdb77747034daa8087407d655f3f7cc1d"
 dependencies = [
  "futures-core",
- "futures-sink",
 ]
 
 [[package]]
@@ -1611,14 +1597,14 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "strides"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2743298a7be9cf43c9df2b25dc58d1f998a13739b135b48aa4d55fe8d1dc81b4"
+checksum = "46737057234537833db513f1054232b294d01bdf3030d489dc2f0a58763346c0"
 dependencies = [
  "crossterm",
- "futures",
  "futures-lite",
  "futures-timer",
+ "futures-util",
  "owo-colors",
  "terminal_size",
 ]
