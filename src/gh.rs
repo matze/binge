@@ -1,12 +1,13 @@
-use crate::{Binary, Repo, extract};
+use std::path::{Path, PathBuf};
+
 use anyhow::{Context, Result, anyhow};
+use futures_lite::StreamExt;
 use regex::Regex;
 use reqwest::Url;
 use reqwest::header::{self, HeaderMap, HeaderValue};
 use serde::Deserialize;
-use std::io::BufReader;
-use std::path::Path;
-use std::{io::Cursor, path::PathBuf};
+
+use crate::{Binary, Repo, extract};
 
 /// API release.
 #[derive(Deserialize, Debug)]
@@ -183,38 +184,48 @@ async fn fetch_and_extract(
         });
 
     if let Some(candidate) = candidates.next() {
-        let tmp = tempfile::tempdir()?;
-        let filepath = tmp.path().join(&candidate.filename);
         let response = client.get(candidate.url).send().await?;
-        let mut file = std::fs::File::create(&filepath)?;
-        let mut content = Cursor::new(response.bytes().await?);
-        std::io::copy(&mut content, &mut file)?;
-
-        let reader = BufReader::new(std::fs::File::open(PathBuf::from(&filepath))?);
 
         let path = match candidate.kind {
-            Compression::None(Archive::Zip) => extract::extract_zip(reader, dest_dir)?,
-            Compression::None(Archive::Tar) => extract::extract_tar(reader, dest_dir)?,
+            Compression::None(Archive::Zip) => {
+                extract::extract_zip(response.bytes().await?, dest_dir).await?
+            }
+            Compression::None(Archive::Tar) => {
+                let read = std::pin::pin!(response_to_stream_reader(response));
+                extract::extract_tar(read, dest_dir).await?
+            }
             Compression::Gz(archive) => {
-                let input = flate2::read::GzDecoder::new(reader);
+                let read = response_to_stream_reader(response);
+                let read = tokio::io::BufReader::new(read);
+                let input = async_compression::tokio::bufread::GzipDecoder::new(read);
 
                 match archive {
-                    Archive::None => extract::extract_single(input, dest_dir, &candidate.filename)?,
+                    Archive::None => {
+                        let path = dest_dir.join(candidate.filename);
+                        extract::write_async(input, &path, 0o755).await?;
+                        path
+                    }
                     Archive::Zip => todo!(),
-                    Archive::Tar => extract::extract_tar(input, dest_dir)?,
+                    Archive::Tar => extract::extract_tar(input, dest_dir).await?,
                 }
             }
             Compression::Zstd(Archive::Tar) => {
-                let input = zstd::Decoder::new(reader)?;
-                extract::extract_tar(input, dest_dir)?
+                let read = response_to_stream_reader(response);
+                let read = tokio::io::BufReader::new(read);
+                let input = async_compression::tokio::bufread::ZstdDecoder::new(read);
+                extract::extract_tar(input, dest_dir).await?
             }
             Compression::Xz(Archive::Tar) => {
-                let input = liblzma::read::XzDecoder::new(reader);
-                extract::extract_tar(input, dest_dir)?
+                let read = response_to_stream_reader(response);
+                let read = tokio::io::BufReader::new(read);
+                let input = async_compression::tokio::bufread::XzDecoder::new(read);
+                extract::extract_tar(input, dest_dir).await?
             }
             Compression::None(Archive::None) => {
-                // TODO: it's a bit wasteful because we copy the file twice.
-                extract::extract_single(reader, dest_dir, &candidate.filename)?
+                let read = std::pin::pin!(response_to_stream_reader(response));
+                let path = dest_dir.join(candidate.filename);
+                extract::write_async(read, &path, 0o755).await?;
+                path
             }
             missing => todo!("{missing:?}"),
         };
@@ -223,6 +234,14 @@ async fn fetch_and_extract(
     }
 
     Err(anyhow!("no asset found"))
+}
+
+fn response_to_stream_reader(response: reqwest::Response) -> impl tokio::io::AsyncRead + Unpin {
+    let stream = response
+        .bytes_stream()
+        .then(|b| async { b.map_err(std::io::Error::other) });
+
+    Box::pin(tokio_util::io::StreamReader::new(stream))
 }
 
 /// Install latest version and record in the local installation manifest.

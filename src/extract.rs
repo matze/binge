@@ -1,72 +1,87 @@
 //! Extractors for various archive types.
-use anyhow::{Result, anyhow};
-use std::fs::File;
-use std::io::{Read, Seek, copy};
+use std::io::Cursor;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-/// Write final binary.
-fn write<R: Read>(mut input: R, dest: &Path, mode: u32) -> Result<()> {
-    let mut output = File::create(dest)?;
-    copy(&mut input, &mut output)?;
+use anyhow::{Result, anyhow};
+use async_zip::base::read::seek::ZipFileReader;
+use futures_lite::StreamExt;
+use tokio::io::AsyncRead;
+use tokio_util::compat::FuturesAsyncReadCompatExt;
 
-    let mut permissions = output.metadata()?.permissions();
+/// Async variant of [`write`].
+pub(crate) async fn write_async<R: AsyncRead + Unpin>(
+    mut input: R,
+    dest: &Path,
+    mode: u32,
+) -> Result<()> {
+    let mut output = tokio::fs::File::create(dest).await?;
+    tokio::io::copy(&mut input, &mut output).await?;
+
+    let mut permissions = output.metadata().await?.permissions();
     permissions.set_mode(mode);
-    output.set_permissions(permissions)?;
+    output.set_permissions(permissions).await?;
 
     Ok(())
 }
 
 /// Extract contained binary and return [`PathBuf`] to where it is located now.
-pub(crate) fn extract_zip<R: Read + Seek>(input: R, dest_dir: &Path) -> Result<PathBuf> {
-    let mut archive = zip::ZipArchive::new(input)?;
+pub(crate) async fn extract_zip<B: AsRef<[u8]> + Unpin>(
+    bytes: B,
+    dest_dir: &Path,
+) -> Result<PathBuf> {
+    let mut archive = ZipFileReader::with_tokio(Cursor::new(bytes)).await?;
 
-    for i in 0..archive.len() {
-        let input = archive.by_index(i)?;
+    let (index, mode, dest) = archive
+        .file()
+        .entries()
+        .iter()
+        .enumerate()
+        .find_map(|(index, entry)| {
+            let mode = entry
+                .unix_permissions()
+                .map(u32::from)
+                .filter(|mode| (mode & 0o100) != 0)?;
 
-        if let Some((mode, name)) = input.unix_mode().zip(input.enclosed_name()) {
-            // TODO: also check it's not a directory
-            if (mode & 0o100) != 0 {
-                let dest = dest_dir.join(&name);
-                write(input, &dest, mode)?;
-                return Ok(dest);
-            }
-        }
-    }
+            let name = entry
+                .filename()
+                .as_str()
+                .ok()
+                .filter(|name| !name.ends_with('/'))?;
 
-    Err(anyhow!("failed to find executable"))
+            let basename = Path::new(name).file_name()?;
+            Some((index, mode, dest_dir.join(basename)))
+        })
+        .ok_or_else(|| anyhow!("failed to find executable"))?;
+
+    let reader = archive.reader_without_entry(index).await?;
+    write_async(reader.compat(), &dest, mode).await?;
+    Ok(dest)
 }
 
 /// Extract contained binary and return [`PathBuf`] to where it is located now.
-pub(crate) fn extract_tar<R: Read>(input: R, dest_dir: &Path) -> Result<PathBuf> {
-    let mut archive = tar::Archive::new(input);
+pub(crate) async fn extract_tar<R: AsyncRead + Unpin>(
+    input: R,
+    dest_dir: &Path,
+) -> Result<PathBuf> {
+    let mut archive = tokio_tar::Archive::new(input);
+    let mut entries = archive.entries()?;
 
-    for entry in archive.entries()? {
+    while let Some(entry) = entries.next().await {
         let entry = entry?;
         let header = entry.header();
 
         if let Ok(mode) = header.mode()
             && (mode & 0o100) != 0
-            && header.entry_type() == tar::EntryType::Regular
+            && header.entry_type() == tokio_tar::EntryType::Regular
         {
             let path = entry.path()?;
             let name = path.file_name().ok_or_else(|| anyhow!("no filename"))?;
             let dest = dest_dir.join(name);
-            write(entry, &dest, mode)?;
+            write_async(entry, &dest, mode).await?;
             return Ok(dest);
         }
     }
 
     Err(anyhow!("failed to find executable"))
-}
-
-/// Extract single binary file.
-pub(crate) fn extract_single<R: Read>(
-    input: R,
-    dest_dir: &Path,
-    filename: &Path,
-) -> Result<PathBuf> {
-    let dest = dest_dir.join(filename);
-    write(input, &dest, 0o755)?;
-    Ok(dest)
 }
