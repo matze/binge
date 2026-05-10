@@ -183,6 +183,7 @@ dependencies = [
  "serde",
  "strides",
  "tokio",
+ "tokio-stream",
  "tokio-util",
  "toml",
  "xdg",
@@ -1612,8 +1613,6 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 [[package]]
 name = "strides"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2743298a7be9cf43c9df2b25dc58d1f998a13739b135b48aa4d55fe8d1dc81b4"
 dependencies = [
  "crossterm",
  "futures",
