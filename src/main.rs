@@ -1,18 +1,19 @@
+mod config;
+mod extract;
+mod gh;
+mod manifest;
+
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand, ValueEnum};
 use clap_complete::{Shell, generate};
 use futures_lite::StreamExt;
 use gh::Release;
-use manifest::Repo;
-use manifest::{Binary, Manifest};
 use owo_colors::OwoColorize;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
-mod config;
-mod extract;
-mod gh;
-mod manifest;
+use manifest::Repo;
+use manifest::{Binary, Manifest};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]

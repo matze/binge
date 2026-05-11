@@ -1,8 +1,9 @@
 //! Default and loaded binge configuration.
 
+use std::path::PathBuf;
+
 use anyhow::{Result, anyhow};
 use serde::Deserialize;
-use std::path::PathBuf;
 use xdg::BaseDirectories;
 
 #[derive(Deserialize)]

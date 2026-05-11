@@ -1,10 +1,12 @@
 //! Manage the local installation manifest.
 
-use crate::config::Config;
+use std::{cmp::Ordering, path::PathBuf};
+
 use anyhow::{Result, anyhow};
 use owo_colors::OwoColorize;
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, path::PathBuf};
+
+use crate::config::Config;
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub(crate) struct Manifest {
