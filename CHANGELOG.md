@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+
+## 0.4.0
+
+**2026-05-11**
+
 ### Added
 
 - GitHub token fallback to `gh auth token` when `GITHUB_TOKEN` is not set.
