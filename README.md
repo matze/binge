@@ -159,8 +159,9 @@ directory underneath the `binge` name. As of now it may contain a single
 ### GitHub Personal Access Token
 
 By default, `binge`'s interactions with the GitHub API may be subject to rate
-limits. To avoid this, it is highly recommended to set the `GITHUB_TOKEN`
-environment variable to a GitHub personal access token.
+limits. To avoid this, it is highly recommended to either login with the `gh`
+command line tool or manually set the `GITHUB_TOKEN` environment variable to a
+GitHub personal access token.
 
 For enhanced security, consider creating a fine-grained token with minimal
 necessary permissions (e.g., read access to public repositories).

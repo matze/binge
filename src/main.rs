@@ -372,11 +372,25 @@ fn list(manifest: &Manifest, format: Format) -> Result<()> {
     Ok(())
 }
 
+fn token_from_gh_client() -> Option<String> {
+    std::process::Command::new("gh")
+        .args(["auth", "token"])
+        .output()
+        .ok()
+        .and_then(|output| {
+            str::from_utf8(&output.stdout)
+                .ok()
+                .map(|s| s.trim_end().to_owned())
+        })
+}
+
 async fn try_main() -> Result<()> {
     let cli = Cli::parse();
     let config = config::Config::new()?;
     let manifest = Manifest::load_or_create(&config)?;
-    let token = std::env::var("GITHUB_TOKEN").ok();
+    let token = std::env::var("GITHUB_TOKEN")
+        .ok()
+        .or_else(token_from_gh_client);
 
     match cli.command {
         Commands::Completion { shell } => {
