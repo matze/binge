@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- GitHub token fallback to `gh auth token` when `GITHUB_TOKEN` is not set.
+
 
 ## 0.3.0
 
