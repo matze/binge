@@ -9,6 +9,7 @@ use clap_complete::{Shell, generate};
 use futures_lite::StreamExt;
 use gh::Release;
 use owo_colors::OwoColorize;
+use strides::future::FutureExt as _;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
@@ -57,16 +58,14 @@ const SPINNER: strides::spinner::Spinner = strides::spinner::styles::DOTS_3;
 
 const SPINNER_STYLE: owo_colors::Style = owo_colors::Style::new().bold().bright_green();
 
-fn progress_style() -> strides::style::ProgressStyle<'static> {
-    strides::style::ProgressStyle::default()
-        .with_spinner(SPINNER)
-        .with_bar(
-            strides::bar::styles::THIN_LINE
-                .with_filled_style(owo_colors::Style::new().bright_purple())
-                .with_empty_style(owo_colors::Style::new().bright_black()),
-        )
-        .with_bar_width(24)
-}
+const PROGRESS_THEME: strides::Theme<'static> = strides::Theme::new()
+    .with_spinner(SPINNER)
+    .with_bar(
+        strides::bar::styles::THIN_LINE
+            .with_filled_style(owo_colors::Style::new().bright_purple())
+            .with_empty_style(owo_colors::Style::new().bright_black()),
+    )
+    .with_bar_width(24);
 
 /// Install all `repose` and update the `manifest`.
 async fn install(
@@ -87,7 +86,7 @@ async fn install(
         println!("{} already installed", already_installed.join(", "));
     }
 
-    let mut group = strides::future::Group::new(progress_style()).with_spinner_style(SPINNER_STYLE);
+    let mut group = strides::future::Group::new(PROGRESS_THEME).with_spinner_style(SPINNER_STYLE);
 
     let client = gh::make_client(token)?;
     let install_path = config.install_path()?;
@@ -96,14 +95,14 @@ async fn install(
         let message = format!("installing {repo} ...");
         let (tx, rx) = unbounded_channel::<f64>();
 
-        group.push_with_progress(
+        group.push(
             {
                 let client = client.clone();
                 let install_path = install_path.clone();
                 Box::pin(async move { gh::install(client, repo, &install_path, tx).await })
-            },
-            message,
-            UnboundedReceiverStream::new(rx),
+            }
+            .with_label(message)
+            .with_progress(UnboundedReceiverStream::new(rx)),
         );
     }
 
@@ -171,20 +170,18 @@ async fn update(
     for binary in binaries {
         let message = format!("checking {} ...", binary.repo);
 
-        group.push(
-            {
-                let client = client.clone();
+        group.push({
+            let client = client.clone();
 
-                Box::pin(async move {
-                    match gh::check(client, &binary).await {
-                        Ok(None) => Check::NotFound { binary },
-                        Ok(Some(release)) => Check::Found { binary, release },
-                        Err(err) => Check::Error { binary, err },
-                    }
-                })
-            },
-            message,
-        );
+            Box::pin(async move {
+                match gh::check(client, &binary).await {
+                    Ok(None) => Check::NotFound { binary },
+                    Ok(Some(release)) => Check::Found { binary, release },
+                    Err(err) => Check::Error { binary, err },
+                }
+            })
+            .with_label(message)
+        });
     }
 
     let checks = group.collect::<Vec<_>>().await;
@@ -200,7 +197,7 @@ async fn update(
 
     let have_updates = !to_update.is_empty();
 
-    let mut group = strides::future::Group::new(progress_style()).with_spinner_style(SPINNER_STYLE);
+    let mut group = strides::future::Group::new(PROGRESS_THEME).with_spinner_style(SPINNER_STYLE);
 
     let mut others = Vec::new();
 
@@ -217,15 +214,15 @@ async fn update(
                 let message = format!("updating {}", old.repo);
                 let (tx, rx) = unbounded_channel::<f64>();
 
-                group.push_with_progress(
+                group.push(
                     Box::pin(async move {
                         match gh::update(client, &old, release, tx).await {
                             Ok(new) => Update::Installed { old, new },
                             Err(err) => Update::Error { binary: old, err },
                         }
-                    }),
-                    message,
-                    UnboundedReceiverStream::new(rx),
+                    })
+                    .with_label(message)
+                    .with_progress(UnboundedReceiverStream::new(rx)),
                 );
             }
             Check::Error { binary, err } => {
@@ -287,20 +284,18 @@ async fn check(manifest: Manifest, token: Option<String>) -> Result<()> {
     for binary in manifest.binaries {
         let message = format!("checking {} ...", binary.repo);
 
-        group.push(
-            {
-                let client = client.clone();
+        group.push({
+            let client = client.clone();
 
-                Box::pin(async move {
-                    match gh::check(client, &binary).await {
-                        Ok(None) => None,
-                        Ok(Some(release)) => Some(Check::Update { binary, release }),
-                        Err(err) => Some(Check::Error { err }),
-                    }
-                })
-            },
-            message,
-        );
+            Box::pin(async move {
+                match gh::check(client, &binary).await {
+                    Ok(None) => None,
+                    Ok(Some(release)) => Some(Check::Update { binary, release }),
+                    Err(err) => Some(Check::Error { err }),
+                }
+            })
+            .with_label(message)
+        });
     }
 
     let checks = group.filter_map(|x| x).collect::<Vec<_>>().await;
