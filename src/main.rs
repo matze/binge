@@ -10,6 +10,7 @@ use futures_lite::StreamExt;
 use gh::Release;
 use owo_colors::OwoColorize;
 use strides::future::FutureExt as _;
+use strides::{Layout, Segment};
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
@@ -67,6 +68,50 @@ const PROGRESS_THEME: strides::Theme<'static> = strides::Theme::new()
     )
     .with_bar_width(24);
 
+/// Visible character count of `repo` rendered as `owner/name`, ignoring any ANSI styling added by
+/// its `Display` impl.
+fn repo_visible_len(repo: &Repo) -> usize {
+    repo.owner.chars().count() + 1 + repo.name.chars().count()
+}
+
+/// Max width (in characters) of `"{prefix} owner/name"` across `repos`.
+fn max_label_width<'a>(prefix: &str, repos: impl IntoIterator<Item = &'a Repo>) -> usize {
+    let base = prefix.chars().count() + 1;
+    repos
+        .into_iter()
+        .map(|r| base + repo_visible_len(r))
+        .max()
+        .unwrap_or(0)
+}
+
+/// Pre-pad `"{prefix} {repo}"` with trailing spaces so its visible width equals `max_width`. The
+/// repo keeps its colored `Display` rendering; padding is added by us so strides does not have to
+/// see (and miscount) the ANSI bytes.
+fn aligned_label(prefix: &str, repo: &Repo, max_width: usize) -> String {
+    let visible = prefix.chars().count() + 1 + repo_visible_len(repo);
+    let pad = max_width.saturating_sub(visible);
+    format!("{prefix} {repo}{:pad$}", "")
+}
+
+/// Spinner, label, bar, elapsed — space-separated.
+fn progress_layout() -> Layout {
+    Layout::new(&[])
+        .with_segment(Segment::spinner())
+        .with_segment(Segment::label())
+        .with_segment(Segment::bar())
+        .with_segment(Segment::elapsed())
+}
+
+fn spinner_theme() -> strides::Theme<'static> {
+    strides::Theme::new()
+        .with_spinner(SPINNER)
+        .with_layout(progress_layout())
+}
+
+fn progress_theme() -> strides::Theme<'static> {
+    PROGRESS_THEME.with_layout(progress_layout())
+}
+
 /// Install all `repose` and update the `manifest`.
 async fn install(
     repos: Vec<Repo>,
@@ -86,13 +131,16 @@ async fn install(
         println!("{} already installed", already_installed.join(", "));
     }
 
-    let mut group = strides::future::Group::new(PROGRESS_THEME).with_spinner_style(SPINNER_STYLE);
+    let label_width = max_label_width("installing", to_be_installed.iter());
+    let mut group = strides::future::Group::new(progress_theme())
+        .with_spinner_style(SPINNER_STYLE)
+        .with_elapsed_time();
 
     let client = gh::make_client(token)?;
     let install_path = config.install_path()?;
 
     for repo in to_be_installed {
-        let message = format!("installing {repo} ...");
+        let message = aligned_label("installing", &repo, label_width);
         let (tx, rx) = unbounded_channel::<f64>();
 
         group.push(
@@ -163,12 +211,15 @@ async fn update(
         Error { binary: Binary, err: anyhow::Error },
     }
 
-    let mut group = strides::future::Group::new(SPINNER).with_spinner_style(SPINNER_STYLE);
+    let check_width = max_label_width("checking", binaries.iter().map(|b| &b.repo));
+    let mut group = strides::future::Group::new(spinner_theme())
+        .with_spinner_style(SPINNER_STYLE)
+        .with_elapsed_time();
 
     let client = gh::make_client(token)?;
 
     for binary in binaries {
-        let message = format!("checking {} ...", binary.repo);
+        let message = aligned_label("checking", &binary.repo, check_width);
 
         group.push({
             let client = client.clone();
@@ -197,7 +248,16 @@ async fn update(
 
     let have_updates = !to_update.is_empty();
 
-    let mut group = strides::future::Group::new(PROGRESS_THEME).with_spinner_style(SPINNER_STYLE);
+    let update_width = max_label_width(
+        "updating",
+        checks.iter().filter_map(|c| match c {
+            Check::Found { binary, .. } => Some(&binary.repo),
+            _ => None,
+        }),
+    );
+    let mut group = strides::future::Group::new(progress_theme())
+        .with_spinner_style(SPINNER_STYLE)
+        .with_elapsed_time();
 
     let mut others = Vec::new();
 
@@ -211,7 +271,7 @@ async fn update(
                 release,
             } => {
                 let client = client.clone();
-                let message = format!("updating {}", old.repo);
+                let message = aligned_label("updating", &old.repo, update_width);
                 let (tx, rx) = unbounded_channel::<f64>();
 
                 group.push(
@@ -277,12 +337,15 @@ async fn check(manifest: Manifest, token: Option<String>) -> Result<()> {
         Error { err: anyhow::Error },
     }
 
-    let mut group = strides::future::Group::new(SPINNER).with_spinner_style(SPINNER_STYLE);
+    let check_width = max_label_width("checking", manifest.binaries.iter().map(|b| &b.repo));
+    let mut group = strides::future::Group::new(spinner_theme())
+        .with_spinner_style(SPINNER_STYLE)
+        .with_elapsed_time();
 
     let client = gh::make_client(token)?;
 
     for binary in manifest.binaries {
-        let message = format!("checking {} ...", binary.repo);
+        let message = aligned_label("checking", &binary.repo, check_width);
 
         group.push({
             let client = client.clone();
