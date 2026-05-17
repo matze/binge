@@ -243,8 +243,7 @@ async fn update(
         }),
     );
 
-    let mut group = strides::future::Group::new(progress_theme())
-        .with_spinner_style(SPINNER_STYLE);
+    let mut group = strides::future::Group::new(progress_theme()).with_spinner_style(SPINNER_STYLE);
 
     let mut others = Vec::new();
 
