@@ -9,7 +9,7 @@ use clap_complete::{Shell, generate};
 use futures_lite::StreamExt;
 use gh::Release;
 use owo_colors::OwoColorize;
-use strides::future::FutureExt as _;
+use strides::future::{FutureExt as _, join};
 use strides::{Layout, Segment};
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -100,12 +100,6 @@ fn progress_layout() -> Layout {
         .with_segment(Segment::label())
         .with_segment(Segment::bar())
         .with_segment(Segment::elapsed())
-}
-
-fn spinner_theme() -> strides::Theme<'static> {
-    strides::Theme::new()
-        .with_spinner(SPINNER)
-        .with_layout(progress_layout())
 }
 
 fn progress_theme() -> strides::Theme<'static> {
@@ -211,31 +205,25 @@ async fn update(
         Error { binary: Binary, err: anyhow::Error },
     }
 
-    let check_width = max_label_width("checking", binaries.iter().map(|b| &b.repo));
-    let mut group = strides::future::Group::new(spinner_theme())
-        .with_spinner_style(SPINNER_STYLE)
-        .with_elapsed_time();
-
     let client = gh::make_client(token)?;
 
-    for binary in binaries {
-        let message = aligned_label("checking", &binary.repo, check_width);
+    let futs = binaries.into_iter().map(|binary| {
+        let client = client.clone();
+        async move {
+            match gh::check(client, &binary).await {
+                Ok(None) => Check::NotFound { binary },
+                Ok(Some(release)) => Check::Found { binary, release },
+                Err(err) => Check::Error { binary, err },
+            }
+        }
+    });
 
-        group.push({
-            let client = client.clone();
-
-            Box::pin(async move {
-                match gh::check(client, &binary).await {
-                    Ok(None) => Check::NotFound { binary },
-                    Ok(Some(release)) => Check::Found { binary, release },
-                    Err(err) => Check::Error { binary, err },
-                }
-            })
-            .with_label(message)
-        });
-    }
-
-    let checks = group.collect::<Vec<_>>().await;
+    let checks: Vec<Check> = join(futs)
+        .with_theme(progress_theme())
+        .with_spinner_style(SPINNER_STYLE)
+        .with_label("checking")
+        .with_elapsed_time()
+        .await;
 
     let to_update = checks
         .iter()
@@ -255,6 +243,7 @@ async fn update(
             _ => None,
         }),
     );
+
     let mut group = strides::future::Group::new(progress_theme())
         .with_spinner_style(SPINNER_STYLE)
         .with_elapsed_time();
@@ -337,31 +326,28 @@ async fn check(manifest: Manifest, token: Option<String>) -> Result<()> {
         Error { err: anyhow::Error },
     }
 
-    let check_width = max_label_width("checking", manifest.binaries.iter().map(|b| &b.repo));
-    let mut group = strides::future::Group::new(spinner_theme())
-        .with_spinner_style(SPINNER_STYLE)
-        .with_elapsed_time();
-
     let client = gh::make_client(token)?;
 
-    for binary in manifest.binaries {
-        let message = aligned_label("checking", &binary.repo, check_width);
+    let futs = manifest.binaries.into_iter().map(|binary| {
+        let client = client.clone();
+        async move {
+            match gh::check(client, &binary).await {
+                Ok(None) => None,
+                Ok(Some(release)) => Some(Check::Update { binary, release }),
+                Err(err) => Some(Check::Error { err }),
+            }
+        }
+    });
 
-        group.push({
-            let client = client.clone();
-
-            Box::pin(async move {
-                match gh::check(client, &binary).await {
-                    Ok(None) => None,
-                    Ok(Some(release)) => Some(Check::Update { binary, release }),
-                    Err(err) => Some(Check::Error { err }),
-                }
-            })
-            .with_label(message)
-        });
-    }
-
-    let checks = group.filter_map(|x| x).collect::<Vec<_>>().await;
+    let checks: Vec<Check> = join(futs)
+        .with_theme(progress_theme())
+        .with_spinner_style(SPINNER_STYLE)
+        .with_label("checking")
+        .with_elapsed_time()
+        .await
+        .into_iter()
+        .flatten()
+        .collect();
 
     for check in checks {
         match check {
