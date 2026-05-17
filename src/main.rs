@@ -478,7 +478,16 @@ async fn try_main() -> Result<()> {
 
 #[tokio::main]
 async fn main() {
-    if let Err(err) = try_main().await {
-        eprintln!("{}: {err:?}", "Error".bright_red().bold());
-    }
+    let work = async {
+        if let Err(err) = try_main().await {
+            eprintln!("{}: {err:?}", "Error".bright_red().bold());
+        }
+    };
+
+    let on_interrupt = async {
+        let _ = tokio::signal::ctrl_c().await;
+        let _ = strides::term::reset();
+    };
+
+    futures_lite::future::race(work, on_interrupt).await;
 }
