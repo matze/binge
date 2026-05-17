@@ -17,7 +17,7 @@ regex = "1.11.1"
 reqwest = { version = "0.13", default-features = false, features = ["brotli", "http2", "json", "rustls", "stream", "zstd"] }
 serde = { version = "1.0.219", features = ["derive"] }
 strides = { version = "1.0.0-rc.2" }
-tokio = { version = "1.44.1", features = ["rt-multi-thread", "macros", "sync"] }
+tokio = { version = "1.44.1", features = ["rt-multi-thread", "macros", "signal", "sync"] }
 tokio-stream = "0.1.18"
 tokio-util = { version = "0.7.18", features = ["io"] }
 toml = "1"
