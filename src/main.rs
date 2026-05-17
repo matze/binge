@@ -222,7 +222,6 @@ async fn update(
         .with_theme(progress_theme())
         .with_spinner_style(SPINNER_STYLE)
         .with_label("checking")
-        .with_elapsed_time()
         .await;
 
     let to_update = checks
@@ -245,8 +244,7 @@ async fn update(
     );
 
     let mut group = strides::future::Group::new(progress_theme())
-        .with_spinner_style(SPINNER_STYLE)
-        .with_elapsed_time();
+        .with_spinner_style(SPINNER_STYLE);
 
     let mut others = Vec::new();
 
@@ -343,7 +341,6 @@ async fn check(manifest: Manifest, token: Option<String>) -> Result<()> {
         .with_theme(progress_theme())
         .with_spinner_style(SPINNER_STYLE)
         .with_label("checking")
-        .with_elapsed_time()
         .await
         .into_iter()
         .flatten()
