@@ -141,7 +141,7 @@ async fn install(
             {
                 let client = client.clone();
                 let install_path = install_path.clone();
-                Box::pin(async move { gh::install(client, repo, &install_path, tx).await })
+                async move { gh::install(client, repo, &install_path, tx).await }
             }
             .with_label(message)
             .with_progress(UnboundedReceiverStream::new(rx)),
@@ -261,12 +261,12 @@ async fn update(
                 let (tx, rx) = unbounded_channel::<f64>();
 
                 group.push(
-                    Box::pin(async move {
+                    async move {
                         match gh::update(client, &old, release, tx).await {
                             Ok(new) => Update::Installed { old, new },
                             Err(err) => Update::Error { binary: old, err },
                         }
-                    })
+                    }
                     .with_label(message)
                     .with_progress(UnboundedReceiverStream::new(rx)),
                 );
