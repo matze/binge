@@ -238,7 +238,11 @@ async fn fetch_and_extract(
 
                 match archive {
                     Archive::None => {
-                        let path = dest_dir.join(candidate.filename);
+                        let name = candidate
+                            .filename
+                            .file_name()
+                            .ok_or_else(|| anyhow!("asset has no usable file name"))?;
+                        let path = dest_dir.join(name);
                         extract::write_async(input, &path, 0o755).await?;
                         path
                     }
@@ -260,7 +264,11 @@ async fn fetch_and_extract(
             }
             Compression::None(Archive::None) => {
                 let read = std::pin::pin!(stream_to_reader(bytes));
-                let path = dest_dir.join(candidate.filename);
+                let name = candidate
+                    .filename
+                    .file_name()
+                    .ok_or_else(|| anyhow!("asset has no usable file name"))?;
+                let path = dest_dir.join(name);
                 extract::write_async(read, &path, 0o755).await?;
                 path
             }
