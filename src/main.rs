@@ -256,13 +256,12 @@ async fn update(
                 binary: old,
                 release,
             } => {
-                let client = client.clone();
                 let message = aligned_label("updating", &old.repo, update_width);
                 let (tx, rx) = unbounded_channel::<f64>();
 
                 group.push(
                     async move {
-                        match gh::update(client, &old, release, tx).await {
+                        match gh::update(&old, release, tx).await {
                             Ok(new) => Update::Installed { old, new },
                             Err(err) => Update::Error { binary: old, err },
                         }

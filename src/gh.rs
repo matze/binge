@@ -59,6 +59,15 @@ pub(crate) struct File {
 }
 
 /// Create a new client usable for GitHub APIs.
+fn build_client(headers: HeaderMap) -> Result<reqwest::Client> {
+    Ok(reqwest::ClientBuilder::new()
+        .default_headers(headers)
+        .brotli(true)
+        .zstd(true)
+        .build()?)
+}
+
+/// Create a client for GitHub API calls, with optional authentication.
 pub(crate) fn make_client(token: Option<String>) -> Result<reqwest::Client> {
     let mut headers = HeaderMap::new();
 
@@ -81,13 +90,12 @@ pub(crate) fn make_client(token: Option<String>) -> Result<reqwest::Client> {
         );
     }
 
-    let client = reqwest::ClientBuilder::new()
-        .default_headers(headers)
-        .brotli(true)
-        .zstd(true)
-        .build()?;
+    build_client(headers)
+}
 
-    Ok(client)
+/// Create a plain client for downloading assets from CDN hosts.
+fn make_download_client() -> Result<reqwest::Client> {
+    build_client(HeaderMap::new())
 }
 
 fn parse_archive(path: PathBuf) -> Archive {
@@ -189,7 +197,6 @@ fn report_progress(
 }
 
 async fn fetch_and_extract(
-    client: reqwest::Client,
     dest_dir: &Path,
     assets: Vec<Asset>,
     progress: UnboundedSender<f64>,
@@ -213,7 +220,7 @@ async fn fetch_and_extract(
         });
 
     if let Some(candidate) = candidates.next() {
-        let response = client.get(candidate.url).send().await?;
+        let response = make_download_client()?.get(candidate.url).send().await?;
         let bytes = report_progress(response, &progress);
 
         let path = match candidate.kind {
@@ -301,7 +308,7 @@ pub(crate) async fn install(
         repo.owner, repo.name,
     ))?;
     let Release { tag_name, assets } = client.get(url).send().await?.json().await?;
-    let mut path = fetch_and_extract(client, dest_dir, assets, progress).await?;
+    let mut path = fetch_and_extract(dest_dir, assets, progress).await?;
 
     if let Some(name) = &repo.rename {
         let from = path.clone();
@@ -331,7 +338,6 @@ pub(crate) async fn check(client: reqwest::Client, binary: &Binary) -> Result<Op
 
 /// Try to update `binary` with `release` info. Returns `Ok(binary)` on successful update.
 pub(crate) async fn update(
-    client: reqwest::Client,
     binary: &Binary,
     Release { tag_name, assets }: Release,
     progress: UnboundedSender<f64>,
@@ -341,7 +347,7 @@ pub(crate) async fn update(
         .parent()
         .ok_or_else(|| anyhow!("no parent for path found"))?;
 
-    let mut path = fetch_and_extract(client, dest_dir, assets, progress)
+    let mut path = fetch_and_extract(dest_dir, assets, progress)
         .await
         .with_context(|| "failed to extract".to_string())?;
 

@@ -19,7 +19,7 @@ pub(crate) async fn write_async<R: AsyncRead + Unpin>(
     tokio::io::copy(&mut input, &mut output).await?;
 
     let mut permissions = output.metadata().await?.permissions();
-    permissions.set_mode(mode);
+    permissions.set_mode(mode & 0o755);
     output.set_permissions(permissions).await?;
 
     Ok(())
