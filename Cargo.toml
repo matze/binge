@@ -5,6 +5,13 @@ edition = "2024"
 rust-version = "1.93"
 
 [dependencies]
+# Transitive via reqwest's brotli feature. brotli 8.0.3 pins alloc-no-stdlib 2.x,
+# but alloc-stdlib 0.2.3 and brotli-decompressor 5.0.2 bumped to 3.x, mixing
+# trait versions and breaking the build. Hold both on their last 2.x-compatible
+# release until upstream is fixed.
+# See https://github.com/dropbox/rust-alloc-no-stdlib/issues/22
+alloc-stdlib = "=0.2.2"
+brotli-decompressor = "=5.0.1"
 anyhow = "1.0.97"
 astral-tokio-tar = "0.6.1"
 async-compression = { version = "0.4.42", default-features = false, features = ["tokio", "xz", "zstd", "gzip"] }
