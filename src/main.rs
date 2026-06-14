@@ -10,7 +10,7 @@ use futures_lite::StreamExt;
 use gh::Release;
 use owo_colors::OwoColorize;
 use strides::future::{FutureExt as _, join};
-use strides::{Layout, Segment};
+use strides::{Gradient, Layout, Rgb, Segment};
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
@@ -63,7 +63,10 @@ const PROGRESS_THEME: strides::Theme = strides::Theme::new()
     .with_spinner(SPINNER)
     .with_bar(
         strides::bar::styles::THIN_LINE
-            .with_filled_style(owo_colors::Style::new().bright_purple())
+            .with_filled_gradient(
+                Gradient::new(&[(0.0, Rgb(240, 249, 167)), (1.0, Rgb(30, 215, 181))]),
+                strides::bar::Axis::Fraction,
+            )
             .with_empty_style(owo_colors::Style::new().bright_black()),
     )
     .with_bar_width(24);
