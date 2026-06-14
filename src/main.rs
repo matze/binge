@@ -59,7 +59,7 @@ const SPINNER: strides::spinner::Spinner = strides::spinner::styles::DOTS_3;
 
 const SPINNER_STYLE: owo_colors::Style = owo_colors::Style::new().bold().bright_green();
 
-const PROGRESS_THEME: strides::Theme<'static> = strides::Theme::new()
+const PROGRESS_THEME: strides::Theme = strides::Theme::new()
     .with_spinner(SPINNER)
     .with_bar(
         strides::bar::styles::THIN_LINE
@@ -102,7 +102,7 @@ fn progress_layout() -> Layout {
         .with_segment(Segment::elapsed())
 }
 
-fn progress_theme() -> strides::Theme<'static> {
+fn progress_theme() -> strides::Theme {
     PROGRESS_THEME.with_layout(progress_layout())
 }
 
