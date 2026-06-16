@@ -69,7 +69,7 @@ const PROGRESS_THEME: strides::Theme = strides::Theme::new()
             )
             .with_empty_style(owo_colors::Style::new().bright_black()),
     )
-    .with_bar_width(24);
+    .with_bar_width(32);
 
 /// Visible character count of `repo` rendered as `owner/name`, ignoring any ANSI styling added by
 /// its `Display` impl.
