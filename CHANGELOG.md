@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Fixed
+
+- Installed .sha256 hashsums.
+
+### Changed
+
+- Use strides for cleaner progress reports.
+
 
 ## 0.4.0
 
