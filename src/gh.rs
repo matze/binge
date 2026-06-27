@@ -215,7 +215,7 @@ async fn fetch_and_extract(
         .filter(|f| {
             f.filename
                 .extension()
-                .map(|ext| ext != "vsix")
+                .map(|ext| ext != "vsix" && ext != "sha256")
                 .unwrap_or(true)
         });
 

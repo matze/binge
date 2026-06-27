@@ -109,7 +109,7 @@ fn progress_theme() -> strides::Theme {
     PROGRESS_THEME.with_layout(progress_layout())
 }
 
-/// Install all `repose` and update the `manifest`.
+/// Install all `repos` and update the `manifest`.
 async fn install(
     repos: Vec<Repo>,
     config: &config::Config,
