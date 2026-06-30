@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+
+## 0.5.0
+
+**2026-06-30**
+
 ### Fixed
 
 - Installed .sha256 hashsums.
