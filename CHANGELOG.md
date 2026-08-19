@@ -3,6 +3,16 @@
 ## Unreleased
 
 
+## 0.6.0
+
+**2026-08-20**
+
+### Changed
+
+- Updated dependencies.
+- Bumped progress bar width.
+
+
 ## 0.5.0
 
 **2026-06-30**
