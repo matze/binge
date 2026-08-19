@@ -1,58 +1,66 @@
+name: Release
+
 on:
-  release:
-    types: [created]
+  push:
+    tags: ["[0-9]+.[0-9]+.[0-9]+*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to build (must already exist)
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  release:
-    name: Release on ${{ matrix.target }}
+  create-release:
+    name: create release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Fail fast if the tag and Cargo.toml version disagree.
+      - name: Verify tag matches Cargo.toml
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          crate="$(cargo metadata --no-deps --format-version=1 \
+            | jq -r '.packages[] | select(.name=="binge") | .version')"
+          test "$tag" = "$crate" || { echo "tag $tag != Cargo.toml $crate"; exit 1; }
+      # Release body = the section of CHANGELOG.md matching the tag version.
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          changelog: CHANGELOG.md
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  upload-assets:
+    name: ${{ matrix.target }}
+    needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            suffix: ""
-
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            suffix: ""
-
-          - target: riscv64gc-unknown-linux-gnu
-            os: ubuntu-latest
-            suffix: ""
-
+          # Linux (musl, statically linked)
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            suffix: ""
-
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
-            suffix: ""
-
+          - target: riscv64gc-unknown-linux-gnu
+            os: ubuntu-latest
+          # macOS
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Build binary
-        uses: houseabsolute/actions-rust-cross@v0
+      - uses: actions/checkout@v7
+      - uses: taiki-e/upload-rust-binary-action@v1
         with:
+          bin: binge
           target: ${{ matrix.target }}
-          toolchain: 1.93.0
-          args: "--locked --release"
-          strip: true
-
-      - name: Prepare assets
-        shell: bash
-        run: |
-          mv target/${{ matrix.target }}/release/binge${{ matrix.suffix }} .
-          tar --zstd -cf binge_${{ github.event.release.tag_name }}_${{ matrix.target }}.tar.zst LICENSE README.md binge${{ matrix.suffix }}
-
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: binge_${{ github.event.release.tag_name }}_${{ matrix.target }}.tar.zst
-          # see https://stackoverflow.com/a/69919067
-          tag_name: ${{ github.event.release.tag_name }}
-          prerelease: false
-          make_latest: true
+          archive: $bin-$tag-$target
+          tar: unix
+          checksum: sha256
+          token: ${{ secrets.GITHUB_TOKEN }}
