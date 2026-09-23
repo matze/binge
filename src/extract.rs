@@ -1,11 +1,11 @@
 //! Extractors for various archive types.
-use std::io::Cursor;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Result, anyhow};
-use async_zip::base::read::seek::ZipFileReader;
+use async_zip::base::read1::seek::ZipArchiveReader;
 use futures_lite::StreamExt;
+use futures_lite::io::Cursor;
 use tokio::io::AsyncRead;
 use tokio_util::compat::FuturesAsyncReadCompatExt;
 
@@ -30,23 +30,23 @@ pub(crate) async fn extract_zip<B: AsRef<[u8]> + Unpin>(
     bytes: B,
     dest_dir: &Path,
 ) -> Result<PathBuf> {
-    let mut archive = ZipFileReader::with_tokio(Cursor::new(bytes)).await?;
+    let mut archive = ZipArchiveReader::open(Cursor::new(bytes)).await?;
 
     let (index, mode, dest) = archive
-        .file()
-        .entries()
+        .cdrs()
         .iter()
         .enumerate()
-        .find_map(|(index, entry)| {
-            let mode = entry
-                .unix_permissions()
-                .map(u32::from)
-                .filter(|mode| (mode & 0o100) != 0)?;
+        .find_map(|(index, cdr)| {
+            // The external attributes' high 16 bits hold the Unix mode.
+            // See <https://github.com/Majored/rs-async-zip/blob/main/SPECIFICATION.md#4422>.
+            let mode = cdr.cdrh.exter_attr >> 16;
+            if (mode & 0o100) == 0 {
+                return None;
+            }
 
-            let name = entry
-                .filename()
+            let name = cdr
+                .insecure_file_name
                 .as_str()
-                .ok()
                 .filter(|name| !name.ends_with('/'))?;
 
             let basename = Path::new(name).file_name()?;
@@ -54,7 +54,7 @@ pub(crate) async fn extract_zip<B: AsRef<[u8]> + Unpin>(
         })
         .ok_or_else(|| anyhow!("failed to find executable"))?;
 
-    let reader = archive.reader_without_entry(index).await?;
+    let reader = archive.file(index).await?;
     write_async(reader.compat(), &dest, mode).await?;
     Ok(dest)
 }

@@ -7,7 +7,7 @@ edition = "2024"
 anyhow = "1.0.97"
 astral-tokio-tar = "0.7.0"
 async-compression = { version = "0.4.42", default-features = false, features = ["tokio", "xz", "zstd", "gzip"] }
-async_zip = { version = "0.0.19", default-features = false, features = ["tokio", "deflate"] }
+async_zip = { version = "0.0.19", default-features = false, features = ["deflate"] }
 clap = { version = "4.5.34", features = ["derive"] }
 clap_complete = "4.5.47"
 futures-lite = "2.6.0"
@@ -18,7 +18,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 strides = { version = "1.0.0-rc.4" }
 tokio = { version = "1.44.1", features = ["rt-multi-thread", "macros", "signal", "sync"] }
 tokio-stream = "0.1.18"
-tokio-util = { version = "0.7.18", features = ["io"] }
+tokio-util = { version = "0.7.18", features = ["compat", "io"] }
 toml = "1"
 xdg = "3.0.0"
 
