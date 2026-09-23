@@ -4,11 +4,10 @@ version = "0.6.0"
 edition = "2024"
 
 [dependencies]
-brotli-decompressor = "5.0.3"
 anyhow = "1.0.97"
-astral-tokio-tar = "0.6.1"
+astral-tokio-tar = "0.7.0"
 async-compression = { version = "0.4.42", default-features = false, features = ["tokio", "xz", "zstd", "gzip"] }
-async_zip = { version = "0.0.18", default-features = false, features = ["tokio", "deflate"] }
+async_zip = { version = "0.0.19", default-features = false, features = ["tokio", "deflate"] }
 clap = { version = "4.5.34", features = ["derive"] }
 clap_complete = "4.5.47"
 futures-lite = "2.6.0"
