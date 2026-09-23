@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-
 ## 0.6.0
 
 **2026-08-20**
@@ -11,7 +10,6 @@
 
 - Updated dependencies.
 - Bumped progress bar width.
-
 
 ## 0.5.0
 
@@ -25,7 +23,6 @@
 
 - Use strides for cleaner progress reports.
 
-
 ## 0.4.0
 
 **2026-05-11**
@@ -38,7 +35,6 @@
 
 - Show a progress bar for install/update progress.
 
-
 ## 0.3.0
 
 **2026-05-10**
@@ -48,7 +44,6 @@
 - Decompress binaries asynchronously, improving performance and avoiding
   intermediate archive copies on disk.
 
-
 ## 0.2.2
 
 **2026-02-21**
@@ -56,7 +51,6 @@
 ### Fixed
 
 - Broken release pipeline.
-
 
 ## 0.2.1
 
@@ -70,7 +64,6 @@
   not exist anymore. Previously, the entry would still be present and prevent
   re-installation.
 
-
 ## 0.2.0
 
 **2025-07-19**
@@ -78,7 +71,6 @@
 ### Added
 
 - `check` subcommand that looks for updates but does not install them.
-
 
 ## 0.1.3
 
@@ -88,7 +80,6 @@
 
 - Update dependencies and move from xz2 to liblzma.
 
-
 ## 0.1.2
 
 **2025-06-03**
@@ -97,7 +88,6 @@
 
 - Release tarballs.
 
-
 ## 0.1.1
 
 **2025-06-02**
@@ -105,7 +95,6 @@
 ### Changed
 
 - Use Rustls instead of OpenSSL.
-
 
 ## 0.1.0
 

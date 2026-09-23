@@ -45,7 +45,6 @@ binge install matze/binge
 You can also run it from source by cloning this repo and calling `cargo run` or
 install it via `cargo` with `cargo install --path .`
 
-
 ## Usage
 
 `binge` provides several subcommands to install and manage installed binaries:
@@ -113,7 +112,7 @@ binge list
 
 By default, this command prints the repository and installed version for each binary:
 
-```
+```text
 sharkdp/fd 8.7.1
 BurntSushi/ripgrep 13.0.0
 idursun/jjui 0.6.0
@@ -128,7 +127,7 @@ binge list install
 
 This will output something like:
 
-```
+```text
 sharkdp/fd BurntSushi/ripgrep idursun/jjui:jjui
 ```
 
@@ -148,13 +147,11 @@ binge completion bash
 Follow the instructions provided by the output to integrate completion with your
 shell.
 
-
 ## Configuration
 
 `binge` can be configured with a `binge.toml` file located in a standard XDG
 directory underneath the `binge` name. As of now it may contain a single
 `install_path` key pointing to the location where binaries are to be installed.
-
 
 ### GitHub Personal Access Token
 
