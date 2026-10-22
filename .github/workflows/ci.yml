@@ -21,6 +21,11 @@ jobs:
         with:
           components: clippy, rustfmt
 
+      - name: cargo deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
       - name: Formatting
         run: cargo fmt --all -- --check
 
